@@ -1,0 +1,23 @@
+# 第一版收录的教材版本白名单。
+# key: 版本代码（进入 bookId），stage: ps 小学 / jh 初中 / sh 高中
+# dir: ChinaTextbook 里 <学段>/英语/ 下的版本目录名
+
+editions:
+  - {stage: ps, code: pep,  name: 人教版（PEP）,  publisher: 人民教育出版社,   dir: 人教版（PEP）（三年级起点）（主编：吴欣）}
+  - {stage: ps, code: wy,   name: 外研版,        publisher: 外语教学与研究出版社, dir: 外研社版（三年级起点）（主编：陈琳）}
+  - {stage: ps, code: yl,   name: 译林版,        publisher: 译林出版社,       dir: 译林版三年级起点}
+  - {stage: ps, code: bsd,  name: 北师大版,      publisher: 北京师范大学出版社, dir: 北师大版}
+  - {stage: ps, code: hj,   name: 沪教版,        publisher: 上海教育出版社,    dir: 沪教版}
+  - {stage: ps, code: jj,   name: 冀教版,        publisher: 河北教育出版社,    dir: 冀教版（三年级起点）}
+
+  - {stage: jh, code: pep,  name: 人教版,        publisher: 人民教育出版社,   dir: 人教版-人民教育出版社}
+  - {stage: jh, code: wy,   name: 外研版,        publisher: 外语教学与研究出版社, dir: 外研社版-外语教学与研究出版社}
+  - {stage: jh, code: yl,   name: 译林版,        publisher: 译林出版社,       dir: 译林版-译林出版社}
+  - {stage: jh, code: bsd,  name: 北师大版,      publisher: 北京师范大学出版社, dir: 北师大版-北京师范大学出版社}
+  - {stage: jh, code: hj,   name: 沪教版,        publisher: 上海教育出版社,    dir: 沪教版-上海教育出版社}
+
+  - {stage: sh, code: pep,  name: 人教版,        publisher: 人民教育出版社,   dir: 人教版-人民教育出版社}
+  - {stage: sh, code: wy,   name: 外研版,        publisher: 外语教学与研究出版社, dir: 外研社版-外语教学与研究出版社}
+  - {stage: sh, code: yl,   name: 译林版,        publisher: 译林出版社,       dir: 译林版-译林出版社}
+  - {stage: sh, code: bsd,  name: 北师大版,      publisher: 北京师范大学出版社, dir: 北师大版-北京师范大学出版社}
+  - {stage: sh, code: hj,   name: 沪教版,        publisher: 上海教育出版社,    dir: 沪教版-上海教育出版社}

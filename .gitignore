@@ -1,0 +1,14 @@
+.venv/
+__pycache__/
+.pytest_cache/
+.DS_Store
+
+# 管线产物和第三方数据（可重新生成 / 下载）
+pipeline/out/
+pipeline/vendor/ecdict/
+pipeline/vendor/word-atlas/
+
+# 小程序
+miniprogram/node_modules/
+miniprogram/miniprogram_npm/
+project.private.config.json
