@@ -10,7 +10,7 @@ GOLDEN = {
     # book: (单元数, 词条数, 总表词数, 抽查词条)
     "ps-pep-3a": (6, 64, 64, ("Unit 4", "panda", "/ˈpændə/", "大熊猫")),
     "jh-pep-7a": (12, 433, 388, ("Unit 9", "Thursday", "/θɜː(r)zdeɪ/", "星期四")),
-    "sh-pep-b1": (6, 364, 332, ("Welcome Unit", "exchange", "/ɪksˈtʃeɪndʒ/", "交换；交流")),
+    "sh-pep-b1": (6, 364, 364, ("Welcome Unit", "exchange", "/ɪksˈtʃeɪndʒ/", "交换；交流")),
 }
 
 

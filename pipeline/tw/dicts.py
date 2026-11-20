@@ -5,6 +5,7 @@ enrich 再按需要的词流式读一遍取整行。
 """
 import csv
 import json
+import re
 from functools import lru_cache
 
 from .paths import PIPELINE
@@ -104,6 +105,8 @@ def known(word):
 
     ECDICT 有大量无词频的杂条（如 afer），只出现在杂条里的不算；屈折形式在 ECDICT 里没有词频，要靠词形表。
     """
+    if re.fullmatch(r"[A-Za-z]+'(s|re|m|ve|ll|d|t)", word):  # 缩约形式：she's、can't、you're
+        word = re.sub(r"(n't|'\w+)$", "", word) or word
     for v in variants(word):
         if rank(v) < UNRANKED or v in PLACEHOLDERS:
             return True

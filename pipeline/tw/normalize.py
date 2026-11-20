@@ -10,12 +10,34 @@ NORMALIZED_DIR = OUT / "normalized"
 NAME_RE = re.compile(r"[（(](男名|女名|姓|人名|名)[）)]")
 ABBR_RE = re.compile(r"^([A-Z]{1,5}|([A-Za-z]\.){2,})$")
 LETTERS = "abcdefghijklmnopqrstuvwxyz"
+# 释义里允许出现的字符：汉字、中日韩标点、全角、拉丁字母和常见符号。字体映射坏掉时会冒出格鲁吉亚文、
+# 老挝文、泰卢固文等（沪教：Alex ჱ历克ຯ（ఴ名）），这样的课本释义丢掉，改用词典释义。
+ZH_OK_RE = re.compile(r"^[\u0020-\u024f\u2000-\u206f\u2190-\u22ff\u2460-\u24ff\u3000-\u303f\u4e00-\u9fff\uff00-\uffef…—·]*$")
+
+
+def garbled(senses):
+    return any(not ZH_OK_RE.match(s["zh"]) for s in senses)
+
+
+def split_note(hw):
+    """词头里的说明拆出来：hello (hi) -> hello / hi，am (I'm = I am) -> am / I'm = I am，
+    I'm = I am -> I'm / = I am，sign up (for sth) -> sign up / for sth。"""
+    hw = re.sub(r"\s+", " ", hw).strip().replace("’", "'").replace("‘", "'")
+    hw = hw.lstrip("*△▲•·").rstrip(",;:").strip()
+    if "(" in hw and ")" not in hw:  # 说明折到了下一行：show (、Thanksgiving (Thanksgiving
+        hw, rest = hw.split("(", 1)
+        return hw.strip(), rest.strip()
+    m = re.match(r"^(.+?)\s*\(([^()]*)\)$", hw)
+    if m:
+        return m.group(1).strip(), m.group(2).strip()
+    m = re.match(r"^(.+?)\s*(=\s*.+)$", hw)
+    if m:
+        return m.group(1).strip(), m.group(2).strip()
+    return hw, ""
 
 
 def clean_hw(hw):
-    hw = re.sub(r"\s+", " ", hw).strip().replace("’", "'").replace("‘", "'")
-    hw = hw.lstrip("*△▲•·")
-    return hw.rstrip(",;:").strip()
+    return split_note(hw)[0]
 
 
 def repair_token(token):
@@ -27,7 +49,7 @@ def repair_token(token):
     if dicts.known(token) or dicts.proper_noun(token):
         return token
     best, best_rank = token, dicts.COMMON_RANK
-    for i in range(1, len(token) + 1):
+    for i in range(len(token) + 1):
         for ch in LETTERS:
             candidate = token[:i] + ch + token[i:]
             r = dicts.rank(candidate)
@@ -73,29 +95,78 @@ def make_id(hw):
     return re.sub(r"\s+", "_", wid)
 
 
+OTHERS_UNIT = "其他词汇"
+
+
+def fill_from_index(units, index):
+    """有的书按单元表只列一部分词（冀教只列四会词），字母序总表才全，而且每个词带课次号。
+    按单元表里的词也带课次号时，用它们建「课次 -> 单元」的对应，把总表独有的词补进对应单元。
+    没出现在按单元表里的课次号，归到比它小的最近一个课次所在的单元。
+    总表里没有课次号的词（冀教的故事词，字体也不一样）放进最后的「其他词汇」，不要求掌握。
+    """
+    ref_unit = {}
+    entries = [(ui, e) for ui, u in enumerate(units) for e in u["entries"]]
+    for ui, e in entries:
+        if e.get("ref", "").isdigit():
+            ref_unit.setdefault(int(e["ref"]), ui)
+    if not entries or len(ref_unit) < 3 or sum(1 for _, e in entries if e.get("ref")) < len(entries) / 2:
+        return units
+    have = {make_id(repair(clean_hw(e["hw"]))) for _, e in entries}
+    known_refs = sorted(ref_unit)
+    units = [{**u, "entries": list(u["entries"])} for u in units]
+    others = []
+    for e in index:
+        if make_id(repair(clean_hw(e["hw"]))) in have:
+            continue
+        if not e.get("ref", "").isdigit():
+            others.append({**e, "fromIndex": True, "star": True})
+            have.add(make_id(repair(clean_hw(e["hw"]))))
+            continue
+        ref = int(e["ref"])
+        lower = [r for r in known_refs if r <= ref]
+        ui = ref_unit[lower[-1] if lower else known_refs[0]]
+        units[ui]["entries"].append({**e, "fromIndex": True})
+        have.add(make_id(repair(clean_hw(e["hw"]))))
+    if others:
+        units.append({"name": OTHERS_UNIT, "entries": others})
+    return units
+
+
 def normalize_book(extracted):
     """req：是否要求掌握。书后有字母序总表时以总表为准（总表不收的专名、缩写不要求），否则按 kind 判断。"""
     units, warnings = [], list(extracted.get("warnings", []))
-    index_ids = {make_id(repair(clean_hw(hw))) for hw in extracted.get("index", [])}
-    for unit in extracted["units"]:
+    # 总表里带 △/* 的是不要求掌握的词（专名、超纲词），不算
+    index_ids = {make_id(repair(clean_hw(e["hw"]))) for e in extracted.get("index", []) if not e.get("star")}
+    for unit in fill_from_index(extracted["units"], extracted.get("index", [])):
         seen = set()
         words = []
         for e in unit["entries"]:
-            hw = clean_hw(e["hw"])
+            hw, note = split_note(e["hw"])
             fixed = repair(hw)
+            bad_zh = garbled(e["senses"])
             word = {
                 "id": make_id(fixed),
                 "hw": fixed,
                 "ipa": e["ipa"],
-                "senses": e["senses"],
+                "senses": [] if bad_zh else e["senses"],
                 "kind": classify(fixed, e["senses"]),
                 "core": e["core"],
             }
             word["req"] = word["id"] in index_ids if index_ids else word["kind"] in REQUIRED_KINDS
+            if e.get("star"):
+                word["req"] = False  # * 标的是选学词
             if fixed != hw:
                 word["raw"] = hw
             if e.get("variant"):
                 word["variant"] = e["variant"]
+            if note:
+                word["note"] = note
+            if e.get("ref"):
+                word["ref"] = e["ref"]
+            if e.get("fromIndex"):
+                word["fromIndex"] = True
+            if bad_zh:
+                word["zhBad"] = True
             if e.get("page"):
                 word["page"] = e["page"]
             if word["id"] in seen:

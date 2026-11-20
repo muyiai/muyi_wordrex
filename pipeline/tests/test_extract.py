@@ -16,6 +16,8 @@ def test_decode_ipa():
     assert decode_ipa(pua('/"rU:l@(r)/')) == "/ˈrʊːlə(r)/"
     assert decode_ipa("kVl@(r)") == "kʌlə(r)"
     assert decode_ipa(pua('/%redZI"streISn/')) == "/ˌredʒɪˈstreɪʃn/"
+    assert decode_ipa("'be!s;b0ː", "CBIPA") == "ˈbeɪsˌbɔː"  # 外研初中
+    assert decode_ipa("/pəˈtenʃl/", "IPAPANNEW") == "/pəˈtenʃl/"  # 已经是 Unicode，不转换
 
 
 def test_primary_layout():
@@ -70,5 +72,7 @@ def test_starts_entry():
     assert not starts_entry([span("p.S9", "ArnoPro-Regular")])
     assert not starts_entry([span("（美国）全国篮球协会", "FZSSJW")])
     # 标题字体画的装饰字母不是词条
-    assert not starts_entry([span("pp", "Geometric706BT-BlackA")], family="ComicSansMS")
-    assert starts_entry([span("plate", "ComicSansMS")], family="ComicSansMS")
+    assert not starts_entry([span("pp", "Geometric706BT-BlackA")], families={"ComicSansMS"})
+    assert starts_entry([span("plate", "ComicSansMS")], families={"ComicSansMS"})
+    # 选学标记 * 单独一个 span
+    assert starts_entry([span("* ", "Symbol"), span("hello", "Times-Bold")], families={"Times"})

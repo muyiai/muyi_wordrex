@@ -2,6 +2,10 @@
 
 两张表是同一本书里独立排版的，提取结果一致就说明两边都没漏/没错；
 不一致的地方就是需要人工看的地方。覆盖率 = 总表里的词在按单元表中找得到的比例。
+
+通过要求覆盖率 ≥ 98%。用总表补过词（fromIndex）的书还要求按单元表里的普通词至少 95% 在总表里，
+防止「按单元表其实取错了地方、再靠总表补全凑出覆盖率」这种假通过。没补过词的书不查这条：
+不少书的总表本来就只收一部分词（人教小学五、六年级）。
 """
 import json
 
@@ -10,14 +14,15 @@ from .paths import EXTRACT_DIR, OUT
 
 QA_DIR = OUT / "qa"
 PASS_COVERAGE = 0.98
+MAX_EXTRA = 0.05
 
 
 def check_book(extracted, normalized):
     words = [w for u in normalized["units"] for w in u["words"]]
     unit_ids = {w["id"] for w in words}
     # 总表本来就不收专名、人名、缩写，这些「多出来」是正常的，不列
-    plain_ids = {w["id"] for w in words if w["kind"] in ("word", "phrase")}
-    index_ids = {make_id(repair(clean_hw(hw))) for hw in extracted.get("index", [])}
+    plain_ids = {w["id"] for w in words if w["kind"] in ("word", "phrase") and not w.get("fromIndex")}
+    index_ids = {make_id(repair(clean_hw(e["hw"]))) for e in extracted.get("index", [])}
     result = {
         "id": normalized["id"],
         "units": len(normalized["units"]),
@@ -25,21 +30,27 @@ def check_book(extracted, normalized):
         "index": len(index_ids),
         "missing": sorted(index_ids - unit_ids),  # 总表有、按单元表没有
         "extra": sorted(plain_ids - index_ids),  # 按单元表有、总表没有
+        "filled": sum(1 for w in words if w.get("fromIndex")),
         "repaired": [f"{w['raw']} -> {w['hw']}" for w in words if "raw" in w],
         "warnings": normalized["warnings"],
     }
     result["coverage"] = 1 - len(result["missing"]) / len(index_ids) if index_ids else None
-    result["pass"] = result["coverage"] is not None and result["coverage"] >= PASS_COVERAGE
+    extra_ratio = len(result["extra"]) / len(plain_ids) if plain_ids else 1
+    # 只有用总表补过不少词的书才可能被「凑出」覆盖率。只比单词：有的总表不收词组（译林初中）
+    single = {w["id"] for w in words if w["kind"] == "word" and not w.get("fromIndex")}
+    single_extra = len(single - index_ids) / len(single) if single else 1
+    masked = result["filled"] >= len(words) * 0.1 and single_extra > MAX_EXTRA
+    result["pass"] = result["coverage"] is not None and result["coverage"] >= PASS_COVERAGE and not masked
     return result
 
 
 def render(results):
-    lines = ["# 提取质量报告", "", "| 书 | 单元 | 词条 | 总表 | 覆盖率 | 总表有/单元表无 | 单元表有/总表无 | 修复 | 结果 |",
-             "|---|---|---|---|---|---|---|---|---|"]
+    lines = ["# 提取质量报告", "", "| 书 | 单元 | 词条 | 总表 | 覆盖率 | 总表有/单元表无 | 单元表有/总表无 | 总表补入 | 修复 | 结果 |",
+             "|---|---|---|---|---|---|---|---|---|---|"]
     for r in results:
         cov = f"{r['coverage']:.1%}" if r["coverage"] is not None else "无总表"
         lines.append(f"| {r['id']} | {r['units']} | {r['words']} | {r['index']} | {cov} | {len(r['missing'])} "
-                     f"| {len(r['extra'])} | {len(r['repaired'])} | {'通过' if r['pass'] else '待查'} |")
+                     f"| {len(r['extra'])} | {r['filled']} | {len(r['repaired'])} | {'通过' if r['pass'] else '待查'} |")
     for r in results:
         lines += ["", f"## {r['id']}"]
         for title, key in [("总表有、按单元表没有", "missing"), ("按单元表有、总表没有", "extra"),
