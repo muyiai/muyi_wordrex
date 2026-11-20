@@ -18,6 +18,8 @@ def test_decode_ipa():
     assert decode_ipa(pua('/%redZI"streISn/')) == "/ˌredʒɪˈstreɪʃn/"
     assert decode_ipa("'be!s;b0ː", "CBIPA") == "ˈbeɪsˌbɔː"  # 外研初中
     assert decode_ipa("/pəˈtenʃl/", "IPAPANNEW") == "/pəˈtenʃl/"  # 已经是 Unicode，不转换
+    assert decode_ipa("/3dZFmRn/", "TimesKKPhoneticNewRoman") == "/ˈdʒɜmən/"  # 沪教：German
+    assert decode_ipa("TeR(r)", "TimesKKPhoneticNewRoman") == "tʃeə(r)"  # 译林：chair
 
 
 def test_primary_layout():

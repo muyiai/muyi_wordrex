@@ -21,15 +21,20 @@ ITALIC_FONT_RE = re.compile(r"italic|-it\b|oblique", re.I)
 
 UNIT_RE = re.compile(
     r"^(Starter Unit \d+|Welcome Unit|Unit ?\d+|Unit (One|Two|Three|Four|Five|Six|Seven|Eight|Nine|Ten)"
-    r"|Module ?\d+|Starter|Lesson ?\d+|Project ?\d+|Recycle ?\d+)$"
+    r"|Module ?\d+|Starter|Lesson ?\d+|Project ?\d+|Recycle ?\d+)$",
+    re.I,  # 外研高中是 UNIT 1
 )
 # 按单元表之后的段落（字母序总表、人名表、不规则动词表）
 # 字母序总表的字母标题：A 或 Aa
 LETTER_HEADING = "|".join(f"{c}{c.lower()}?" for c in "ABCDEFGHIJKLMNOPQRSTUVWXYZ")
-STOP_RE = re.compile(rf"^(Vocabulary( Index)?|Appendix [2-9]|词\s*汇\s*表|Name List|Irregular Verbs|{LETTER_HEADING})$")
+STOP_RE = re.compile(
+    rf"^(Vocabulary( Index)?|Appendix [2-9]|词\s*汇\s*表|Name List|Irregular Verbs|Grammar reference|Glossary"
+    rf"|{LETTER_HEADING})$"
+)
 # 字母序总表之后的段落
 INDEX_END_RE = re.compile(
-    r"^(Name List|Irregular Verbs|Appendix [3-9]|Proper Nouns|Glossary|专有名词|后\s*记|本册教科书.*)$", re.I
+    r"^(Name List|Names( and places)?|Places|Irregular Verbs|Appendix [3-9]|Proper Nouns|Glossary|Consonants.*|Vowels.*"
+    r"|Junior high school language knowledge overview|专有名词|后\s*记|本册教科书.*)$", re.I
 )
 # 编者名单：Judy West( 英) Diana Pye( 英)——除了 英/美 没有别的汉字（区别于「华盛顿（美国首都）」这类释义）
 CREDITS_RE = re.compile(r"[（(]\s*[英美]\s*[)）]")
@@ -58,8 +63,11 @@ FULLWIDTH = {c: c - 0xFEE0 for c in [*range(0xFF10, 0xFF1A), *range(0xFF21, 0xFF
                                       0xFF1D, 0xFF0E, 0xFF07, 0xFF0D]}
 # 词条末尾的课次/单元号：（１）、(7)
 REF_TAIL_RE = re.compile(r"\s*[（(]\s*(\d+|w)\s*[）)]\s*$")
-STAR_MARKS = "*△▲"  # 词头前的选学标记
+STAR_MARKS = "*△▲▫"  # 词头前的标记：*△▲ 选学/不要求，▫ 外研高中的选择性必修词
 CONTROL_RE = re.compile(r"[\x00-\x08\x0b-\x1f\xad\ue000-\uf8ff]")
+# 词头到哪里为止：第一个不是拉丁字母（Latin-1）、引号、破折号、省略号的字符。不能只看汉字：沪教的中文字体
+# 映射坏了，释义变成阿拉伯文、泰文、č 之类，只看汉字会把它们当成词头的一部分
+HW_END_RE = re.compile(r"[^\s\u0000-\u00ff\u2010-\u201f\u2026\u22ef\u25ab\u25b2\u25b3]")  # △▲ 是选学标记；\s 含全角空格
 CJK_RE = re.compile(r"[　-〿一-鿿＀-￯]")
 
 # 各家音标字体的编码。SIL 的 Ipa-samdUclphon（人教）是 SAMPA 记法；CBIPA（外研初中）的表是拿词光的
@@ -72,7 +80,18 @@ CBIPA_TO_IPA = {
     "!": "ɪ", "'": "ˈ", "2": "ə", "%": "ʊ", "=": "ɒ", "0": "ɔ", "1": "ʃ", "3": "ʒ", "7": "ʌ",
     "9": "ŋ", "8": "θ", ";": "ˌ", "4": "ɑ", "^": "ɜ", "*": "æ", "6": "ð", ":": "ː",
 }
-IPA_TABLES = [(re.compile(r"samd|sil", re.I), SAMPA_TO_IPA), (re.compile(r"^CBIPA$"), CBIPA_TO_IPA)]
+# TimesKKPhoneticNewRoman（沪教、译林）：同样是对齐统计出来的；T/J 是 tʃ/dʒ（chair /TeR(r)/、age /eIJ/）
+KK_TO_IPA = {
+    "I": "ɪ", "3": "ˈ", "9": "ˈ", "4": "ˌ", "0": "ˌ", "R": "ə", "W": "ʊ", "C": "æ", "B": "ɒ", "V": "ʌ",
+    "G": "ɡ", "O": "ɔ", "N": "ŋ", "A": "ɑ", "S": "ʃ", "F": "ɜ", "P": "θ", "Q": "ð", "Z": "ʒ", "T": "tʃ",
+    "J": "dʒ", ":": "ː",
+}
+IPA_TABLES = [
+    (re.compile(r"samd|sil", re.I), SAMPA_TO_IPA),
+    (re.compile(r"^CBIPA$"), CBIPA_TO_IPA),
+    (re.compile(r"KKPhonetic"), KK_TO_IPA),
+    (re.compile(r"Times-PhoneticIPA"), {":": "ː"}),  # 只排长音符，其余字符映射已损坏
+]
 
 
 def decode_ipa(text, font="Ipa-samdUclphon1SILDoulos"):
@@ -132,18 +151,36 @@ def order_columns(lines):
     if gap < 100 or min(left_n, len(starts) - left_n) < 3:
         return lines
     boundary = right - 5
+
+    def spanning(l):
+        """总表之后的段落标题（Proper nouns、Glossary……）把页面切成上下几段，每段内再分栏。
+        沪教：左栏 S–T、右栏 T–W 之后，Proper nouns 从左栏下方开始，按整栏读会先读到它。
+        单元标题不能切：双栏的按单元表里单元标题就在栏内。"""
+        return bool(INDEX_END_RE.match(line_text(l)))
+
+    cuts = sorted(line_center(l) for l in lines if spanning(l))
     ordered = []
-    for col in (False, True):
-        col_lines = sorted((l for l in lines if (l[0]["bbox"][0] >= boundary) == col), key=line_center)
-        # 同一视觉行的几段（词条和行尾的课次号「（2）」）上沿可能差一两个点，按行分组后再从左到右
-        rows = []
-        for l in col_lines:
-            if rows and rows[-1][0][0]["bbox"][1] <= line_center(l) <= rows[-1][0][0]["bbox"][3]:
-                rows[-1].append(l)
-            else:
-                rows.append([l])
-        ordered += [l for row in rows for l in sorted(row, key=lambda l: l[0]["bbox"][0])]
+    for band in range(len(cuts) + 1):
+        top = cuts[band - 1] if band else float("-inf")
+        bottom = cuts[band] if band < len(cuts) else float("inf")
+        band_lines = [l for l in lines if top <= line_center(l) < bottom]
+        heads = sorted((l for l in band_lines if spanning(l)), key=line_center)
+        rest = [l for l in band_lines if not spanning(l)]
+        ordered += heads
+        for col in (False, True):
+            ordered += by_rows([l for l in rest if (l[0]["bbox"][0] >= boundary) == col])
     return ordered
+
+
+def by_rows(lines):
+    """栏内从上到下。同一视觉行的几段（词条和行尾的课次号「（2）」）上沿可能差一两个点，按行分组后再从左到右。"""
+    rows = []
+    for l in sorted(lines, key=line_center):
+        if rows and rows[-1][0][0]["bbox"][1] <= line_center(l) <= rows[-1][0][0]["bbox"][3]:
+            rows[-1].append(l)
+        else:
+            rows.append([l])
+    return [l for row in rows for l in sorted(row, key=lambda l: l[0]["bbox"][0])]
 
 
 def line_center(spans):
@@ -203,17 +240,23 @@ def entry_like(spans):
 def find_start_page(doc):
     """单词表起始页：书的后半部分里，第一张有单元标题、且像单词表的页面。
 
-    先找有音标或页码引用（至少 5 处）的页；整本书都没有时（小学课本的词表常常没有音标），
-    再退一步找「英文 + 中文」的词条行至少 5 行的页。直接用后一个条件会先撞上课文注释、译文页。
+    像单词表 = 至少 5 处音标或页码引用，并且至少 5 行「英文 + 中文」的词条行。只看前者会撞上课文里的
+    语音练习页（沪教：/aW/ /w/ /j/ 和页码），只看后者会撞上课文注释、译文页。都找不到时依次放宽：
+    小学词表常常没有音标（只看词条行），极少数词表没有中文（只看音标/页码）。
     """
     pages = [(i, page_lines(doc[i])) for i in range(len(doc) // 2, len(doc))]
     pages = [(i, lines) for i, lines in pages if any(UNIT_RE.match(line_text(l)) for l in lines)]
-    for i, lines in pages:
-        if sum(1 for l in lines for s in l if strong_marker(s)) >= 5:
-            return i
-    for i, lines in pages:
-        if sum(1 for l in lines if entry_like(l)) >= 5:
-            return i
+
+    def strong(lines):
+        return sum(1 for l in lines for s in l if strong_marker(s)) >= 5
+
+    def entries(lines):
+        return sum(1 for l in lines if entry_like(l)) >= 5
+
+    for test in (lambda l: strong(l) and entries(l), entries, strong):
+        for i, lines in pages:
+            if test(lines):
+                return i
     return None
 
 
@@ -244,7 +287,7 @@ def parse_entry(lines):
             # 正文字体里的「空格 + 斜杠」开始音标：外研初中有的音标直接用正文字体排 Unicode IPA（jeans /dʒiːnz/）。
             # 斜杠前没有空格的是词头本身（telephone/phone number）
             slash = re.search(r"(?:^|\s)/", text)
-            cjk = CJK_RE.search(text)
+            cjk = HW_END_RE.search(text)
             if slash and (not cjk or slash.start() < cjk.start()):
                 hw_parts.append(text[: slash.start()])
                 text = text[slash.start():].lstrip()
@@ -262,7 +305,7 @@ def parse_entry(lines):
                 if not text.strip():
                     continue
         if phase == "hw" and not is_italic(s):
-            cjk = CJK_RE.search(text)
+            cjk = HW_END_RE.search(text)
             if cjk:
                 hw_parts.append(text[: cjk.start()])
                 text = text[cjk.start():]
@@ -310,16 +353,28 @@ def parse_entry(lines):
             ref = m.group(1)
             senses[-1]["zh"] = senses[-1]["zh"][: m.start()]
     senses = [s for s in senses if s["pos"] or s["zh"]]
-    star = hw.startswith(tuple(STAR_MARKS))
-    hw = hw.lstrip(STAR_MARKS).strip()
+    marks = hw[: len(hw) - len(hw.lstrip(STAR_MARKS + " "))]
+    star = any(m in marks for m in "*△▲")
+    hw = hw.lstrip(STAR_MARKS + " ").strip()
     entry = {"hw": hw, "ipa": ipa, "senses": senses, "page": pages[0] if pages else "", "core": core}
     if star:
         entry["star"] = True
+    if "▫" in marks:
+        entry["elective"] = True
     if variant:
         entry["variant"] = variant
     if ref:
         entry["ref"] = ref
     return entry
+
+
+def open_paren(entry_lines):
+    """词头的英文括号没闭合，下一行就是续行，哪怕它以英文开头：Thanksgiving (Thanksgiving / Day)。
+    只看只有一行的词条的词头部分；释义、备注里没闭合的括号不算，否则会把后面的词条都吞掉。"""
+    if len(entry_lines) != 1:
+        return False
+    head = HW_END_RE.split(line_text(entry_lines[0]), 1)[0]
+    return head.count("(") > head.count(")")
 
 
 def extract_book(pdf_path):
@@ -346,7 +401,7 @@ def extract_book(pdf_path):
         text = line_text(spans)
         if SKIP_RE.match(text):
             continue
-        if STOP_RE.match(text):
+        if STOP_RE.match(text) and units:  # 第一个单元之前的 Vocabulary 是词表自己的标题（沪教高中）
             flush()
             index = extract_index(lines, families)
             return {"pages": [start, i], "units": units, "index": index, "warnings": warnings}
@@ -362,7 +417,7 @@ def extract_book(pdf_path):
             continue
         if current is None:
             continue
-        if starts_entry(spans, families):
+        if starts_entry(spans, families) and not open_paren(entry_lines):
             flush()
             entry_lines.append(spans)
         elif entry_lines:

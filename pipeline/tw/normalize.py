@@ -23,7 +23,7 @@ def split_note(hw):
     """词头里的说明拆出来：hello (hi) -> hello / hi，am (I'm = I am) -> am / I'm = I am，
     I'm = I am -> I'm / = I am，sign up (for sth) -> sign up / for sth。"""
     hw = re.sub(r"\s+", " ", hw).strip().replace("’", "'").replace("‘", "'")
-    hw = hw.lstrip("*△▲•·").rstrip(",;:").strip()
+    hw = hw.lstrip("*△▲▫•· ").rstrip(",;:“”\"").strip()
     if "(" in hw and ")" not in hw:  # 说明折到了下一行：show (、Thanksgiving (Thanksgiving
         hw, rest = hw.split("(", 1)
         return hw.strip(), rest.strip()
@@ -167,6 +167,8 @@ def normalize_book(extracted):
                 word["fromIndex"] = True
             if bad_zh:
                 word["zhBad"] = True
+            if e.get("elective"):
+                word["elective"] = True  # 外研高中 ▫：选择性必修词
             if e.get("page"):
                 word["page"] = e["page"]
             if word["id"] in seen:
