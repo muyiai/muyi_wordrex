@@ -64,6 +64,42 @@ def repair(hw):
     return re.sub(r"[A-Za-z]+", lambda m: repair_token(m.group()), hw)
 
 
+def repair_ocr_token(token):
+    """扫描版 OCR 的错字：TOOK/COW 这类全大写的常用词改小写；查不到的词试一次编辑（替换、删除、插入一个字符），
+    取最常用的候选（d0g -> dog、friena -> friend、wnat -> what）。"""
+    if token.isupper() and (len(token) > 2 or token in CAPS_WORDS) and dicts.rank(token.lower()) < 5000:
+        return token.lower()
+    lower = token.lower()
+    own = dicts.rank(token)
+    # 屈折形式（are/has）在 ECDICT 里没有词频（own 是 UNRANKED 以上），认得就不动
+    if (dicts.known(token) and (own <= 10000 or own >= dicts.UNRANKED)) or dicts.proper_noun(token):
+        return token
+    # 认得但很生僻的词（ana）也可能是认错的常用词：候选要比它常用 20 倍以上才换
+    best, best_rank = token, min(dicts.COMMON_RANK, own // 20) if dicts.known(token) else dicts.COMMON_RANK
+    for i in range(len(lower) + 1):
+        for ch in LETTERS:
+            for cand in (lower[:i] + ch + lower[i + 1:], lower[:i] + ch + lower[i:]):
+                r = dicts.rank(cand)
+                if r < best_rank:
+                    best, best_rank = cand, r
+        if i < len(lower):
+            cand = lower[:i] + lower[i + 1:]
+            r = dicts.rank(cand)
+            if r < best_rank:
+                best, best_rank = cand, r
+    return best
+
+
+# 两个字母的全大写词只改这些常见虚词，其余当缩写（OK、TV、PE）
+CAPS_WORDS = {"IS", "IT", "IN", "ON", "AT", "TO", "NO", "MY", "ME", "HE", "WE", "DO", "GO", "SO", "UP", "AM", "AN", "BE",
+              "BY", "IF", "OF", "OR"}
+
+
+def repair_ocr(hw):
+    return re.sub(r"[A-Za-z0-9]+", lambda m: repair_ocr_token(m.group()) if re.search(r"[A-Za-z]", m.group()) else m.group(),
+                  hw)
+
+
 def classify(hw, senses):
     zh = " ".join(s["zh"] for s in senses)
     pos = " ".join(s["pos"] for s in senses)
@@ -85,6 +121,11 @@ def classify(hw, senses):
 REQUIRED_KINDS = {"word", "phrase"}
 
 
+def entry_id(hw, ocr=False):
+    """词条原始词头 -> wordId（清洗、修复后），按单元表、总表、QA 都用它，保证两边对得上。"""
+    return make_id((repair_ocr if ocr else repair)(clean_hw(hw)))
+
+
 def make_id(hw):
     """全局 wordId：小写、去掉句末标点、空格换成下划线。不同教材里的同一个词共用一份学习进度。
 
@@ -98,7 +139,7 @@ def make_id(hw):
 OTHERS_UNIT = "其他词汇"
 
 
-def fill_from_index(units, index):
+def fill_from_index(units, index, ocr=False):
     """有的书按单元表只列一部分词（冀教只列四会词），字母序总表才全，而且每个词带课次号。
     按单元表里的词也带课次号时，用它们建「课次 -> 单元」的对应，把总表独有的词补进对应单元。
     没出现在按单元表里的课次号，归到比它小的最近一个课次所在的单元。
@@ -111,38 +152,58 @@ def fill_from_index(units, index):
             ref_unit.setdefault(int(e["ref"]), ui)
     if not entries or len(ref_unit) < 3 or sum(1 for _, e in entries if e.get("ref")) < len(entries) / 2:
         return units
-    have = {make_id(repair(clean_hw(e["hw"]))) for _, e in entries}
+    have = {entry_id(e["hw"], ocr) for _, e in entries}
     known_refs = sorted(ref_unit)
     units = [{**u, "entries": list(u["entries"])} for u in units]
     others = []
     for e in index:
-        if make_id(repair(clean_hw(e["hw"]))) in have:
+        if entry_id(e["hw"], ocr) in have:
             continue
         if not e.get("ref", "").isdigit():
             others.append({**e, "fromIndex": True, "star": True})
-            have.add(make_id(repair(clean_hw(e["hw"]))))
+            have.add(entry_id(e["hw"], ocr))
             continue
         ref = int(e["ref"])
         lower = [r for r in known_refs if r <= ref]
         ui = ref_unit[lower[-1] if lower else known_refs[0]]
         units[ui]["entries"].append({**e, "fromIndex": True})
-        have.add(make_id(repair(clean_hw(e["hw"]))))
+        have.add(entry_id(e["hw"], ocr))
     if others:
         units.append({"name": OTHERS_UNIT, "entries": others})
+    return units
+
+
+def units_from_index(index):
+    """只有字母序总表的书：按每个词的单元号分单元（Unit 1、Unit 2……），没有单元号的放进「其他词汇」。"""
+    by_ref = {}
+    for e in index:
+        ref = e.get("ref", "")
+        key = int(ref) if ref.isdigit() else None
+        by_ref.setdefault(key, []).append(e)
+    units = [{"name": f"Unit {k}", "entries": by_ref[k]} for k in sorted(k for k in by_ref if k is not None)]
+    if None in by_ref:
+        units.append({"name": OTHERS_UNIT, "entries": [{**e, "star": True} for e in by_ref[None]]})
     return units
 
 
 def normalize_book(extracted):
     """req：是否要求掌握。书后有字母序总表时以总表为准（总表不收的专名、缩写不要求），否则按 kind 判断。"""
     units, warnings = [], list(extracted.get("warnings", []))
+    fix = repair_ocr if extracted.get("ocr") else repair
     # 总表里带 △/* 的是不要求掌握的词（专名、超纲词），不算
-    index_ids = {make_id(repair(clean_hw(e["hw"]))) for e in extracted.get("index", []) if not e.get("star")}
-    for unit in fill_from_index(extracted["units"], extracted.get("index", [])):
+    ocr = bool(extracted.get("ocr"))
+    index_ids = {entry_id(e["hw"], ocr) for e in extracted.get("index", []) if not e.get("star")}
+    raw_units = extracted["units"]
+    if extracted.get("indexOnly"):
+        raw_units = units_from_index(extracted.get("index", []))
+    for unit in fill_from_index(raw_units, extracted.get("index", []), ocr):
         seen = set()
         words = []
         for e in unit["entries"]:
             hw, note = split_note(e["hw"])
-            fixed = repair(hw)
+            fixed = fix(hw)
+            if ocr:  # OCR 常把释义里的分号认成冒号
+                e = {**e, "senses": [{**s, "zh": s["zh"].replace("：", "；")} for s in e["senses"]]}
             bad_zh = garbled(e["senses"])
             word = {
                 "id": make_id(fixed),
@@ -171,6 +232,9 @@ def normalize_book(extracted):
                 word["elective"] = True  # 外研高中 ▫：选择性必修词
             if e.get("page"):
                 word["page"] = e["page"]
+            if ocr and not word["senses"] and word["kind"] == "phrase":
+                warnings.append(f"{unit['name']}: OCR 无释义的词组，丢弃 {fixed!r}")  # 多半是认错的标题（Wora List）
+                continue
             if word["id"] in seen:
                 warnings.append(f"{unit['name']}: 单元内重复 {word['id']}")
                 continue

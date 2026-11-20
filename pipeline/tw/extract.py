@@ -10,9 +10,11 @@ import json
 import re
 import unicodedata
 from collections import Counter
+from pathlib import Path
 
 import fitz
 
+from . import ocr
 from .paths import EXTRACT_DIR, OUT, PDF_DIR
 
 IPA_FONT_RE = re.compile(r"ipa|phon|kingsoft|ksphon", re.I)
@@ -25,6 +27,9 @@ UNIT_RE = re.compile(
     re.I,  # 外研高中是 UNIT 1
 )
 # 按单元表之后的段落（字母序总表、人名表、不规则动词表）
+WORDLIST_TITLE_RE = re.compile(
+    r"^(Word ?list|Words and expressions( in each (unit|module))?|Vocabulary|Words in each (unit|module)"
+    r"|单\s*词\s*表|词\s*汇\s*表)\b", re.I)
 # 字母序总表的字母标题：A 或 Aa
 LETTER_HEADING = "|".join(f"{c}{c.lower()}?" for c in "ABCDEFGHIJKLMNOPQRSTUVWXYZ")
 STOP_RE = re.compile(
@@ -34,7 +39,7 @@ STOP_RE = re.compile(
 # 字母序总表之后的段落
 INDEX_END_RE = re.compile(
     r"^(Name List|Names( and places)?|Places|Irregular Verbs|Appendix [3-9]|Proper Nouns|Glossary|Consonants.*|Vowels.*"
-    r"|Junior high school language knowledge overview|专有名词|后\s*记|本册教科书.*)$", re.I
+    r"|Junior high school language knowledge overview|Daily expressions|专有名词|后\s*记|本册教科书.*)$", re.I
 )
 # 编者名单：Judy West( 英) Diana Pye( 英)——除了 英/美 没有别的汉字（区别于「华盛顿（美国首都）」这类释义）
 CREDITS_RE = re.compile(r"[（(]\s*[英美]\s*[)）]")
@@ -44,7 +49,7 @@ def is_credits(text):
     return bool(CREDITS_RE.search(text)) and not re.search(r"[一-鿿]", re.sub(r"[英美]", "", text))
 SKIP_RE = re.compile(
     r"^(\d+|Appendix \d+|Appendices|Words and Expressions in Each (Unit|Module)|Words in Each (Unit|Module)"
-    r"|单\s*元\s*词\s*汇\s*表|（注：.*）)$",
+    r"|单\s*元\s*词\s*汇\s*表|（注：.*）|注：.*)$",
     re.I,
 )
 PAGE_REF_RE = re.compile(r"p\.\s?S?\d+")
@@ -62,7 +67,9 @@ LIGATURE_RE = re.compile(r"([ﬀ-ﬆ])(?: (?=[a-z]))?")  # "ﬁ ve"：连字后�
 FULLWIDTH = {c: c - 0xFEE0 for c in [*range(0xFF10, 0xFF1A), *range(0xFF21, 0xFF3B), *range(0xFF41, 0xFF5B),
                                       0xFF1D, 0xFF0E, 0xFF07, 0xFF0D]}
 # 词条末尾的课次/单元号：（１）、(7)
-REF_TAIL_RE = re.compile(r"\s*[（(]\s*(\d+|w)\s*[）)]\s*$")
+# 词条末尾的课次/单元/页码号：（１）、(7)、扫描版的「什么 2」、沪教小学的「苹果 U3」
+REF_TAIL_RE = re.compile(
+    r"\s*(?:[（(]\s*(\d+|w)\s*[）)]|(?<=[\u4e00-\u9fff）)])\s+U?(\d{1,3}))\s*$")
 STAR_MARKS = "*△▲▫"  # 词头前的标记：*△▲ 选学/不要求，▫ 外研高中的选择性必修词
 CONTROL_RE = re.compile(r"[\x00-\x08\x0b-\x1f\xad\ue000-\uf8ff]")
 # 词头到哪里为止：第一个不是拉丁字母（Latin-1）、引号、破折号、省略号的字符。不能只看汉字：沪教的中文字体
@@ -118,21 +125,25 @@ def is_ipa(span):
     return bool(IPA_FONT_RE.search(span["font"]))
 
 
-def page_lines(page):
-    """页面上的非空行，每行是去掉空白 span 后的 span 列表。"""
+def page_lines(page, ocr_observations=None):
+    """页面上的非空行，每行是去掉空白 span 后的 span 列表。
+    页面没有文字层、但有 OCR 结果时用 OCR 的行（见 ocr.py）。"""
+    if ocr_observations is not None and not page.get_text().strip():
+        raw = ocr.page_lines(ocr_observations, page.rect.width)
+    else:
+        raw = [line["spans"] for block in page.get_text("dict")["blocks"] for line in block.get("lines", [])]
     lines = []
-    for block in page.get_text("dict")["blocks"]:
-        for line in block.get("lines", []):
-            spans = []
-            for s in line["spans"]:
-                if not s["text"].strip():
-                    continue
-                if not is_ipa(s):  # 只拆连字 ﬁ/ﬂ、全角字母转半角；NFKC 会把全角标点也改掉，所以不能整段规范化
-                    text = LIGATURE_RE.sub(lambda m: unicodedata.normalize("NFKC", m.group(1)), s["text"])
-                    s = {**s, "text": CONTROL_RE.sub("", text.translate(FULLWIDTH))}  # 含私用区字符（Mrs\ue010）
-                spans.append(s)
-            if spans:
-                lines.append(spans)
+    for line_spans in raw:
+        spans = []
+        for s in line_spans:
+            if not s["text"].strip():
+                continue
+            if not is_ipa(s):  # 只拆连字 ﬁ/ﬂ、全角字母转半角；NFKC 会把全角标点也改掉，所以不能整段规范化
+                text = LIGATURE_RE.sub(lambda m: unicodedata.normalize("NFKC", m.group(1)), s["text"])
+                s = {**s, "text": CONTROL_RE.sub("", text.translate(FULLWIDTH))}  # 含私用区字符（Mrs\ue010）
+            spans.append(s)
+        if spans:
+            lines.append(spans)
     return order_columns(lines)
 
 
@@ -237,14 +248,15 @@ def entry_like(spans):
     return starts_entry(spans) and any(CJK_RE.search(s["text"]) for s in spans)
 
 
-def find_start_page(doc):
+def find_start_page(doc, lines_of=None):
     """单词表起始页：书的后半部分里，第一张有单元标题、且像单词表的页面。
 
     像单词表 = 至少 5 处音标或页码引用，并且至少 5 行「英文 + 中文」的词条行。只看前者会撞上课文里的
     语音练习页（沪教：/aW/ /w/ /j/ 和页码），只看后者会撞上课文注释、译文页。都找不到时依次放宽：
     小学词表常常没有音标（只看词条行），极少数词表没有中文（只看音标/页码）。
     """
-    pages = [(i, page_lines(doc[i])) for i in range(len(doc) // 2, len(doc))]
+    lines_of = lines_of or (lambda i: page_lines(doc[i]))
+    pages = [(i, lines_of(i)) for i in range(len(doc) // 2, len(doc))]
     pages = [(i, lines) for i, lines in pages if any(UNIT_RE.match(line_text(l)) for l in lines)]
 
     def strong(lines):
@@ -253,7 +265,10 @@ def find_start_page(doc):
     def entries(lines):
         return sum(1 for l in lines if entry_like(l)) >= 5
 
-    for test in (lambda l: strong(l) and entries(l), entries, strong):
+    def titled(lines):  # 页上有单词表的标题（译林初中七上的 Wordlist 只有词性、页码，没有中文）
+        return any(WORDLIST_TITLE_RE.match(line_text(l)) for l in lines) and (strong(lines) or entries(lines))
+
+    for test in (titled, lambda l: strong(l) and entries(l), entries, strong):
         for i, lines in pages:
             if test(lines):
                 return i
@@ -350,7 +365,7 @@ def parse_entry(lines):
     if senses:
         m = REF_TAIL_RE.search(senses[-1]["zh"])
         if m:
-            ref = m.group(1)
+            ref = m.group(1) or m.group(2)
             senses[-1]["zh"] = senses[-1]["zh"][: m.start()]
     senses = [s for s in senses if s["pos"] or s["zh"]]
     marks = hw[: len(hw) - len(hw.lstrip(STAR_MARKS + " "))]
@@ -379,13 +394,42 @@ def open_paren(entry_lines):
 
 def extract_book(pdf_path):
     doc = fitz.open(pdf_path)
-    start = find_start_page(doc)
+    ocr_pages = ocr.load(Path(pdf_path).stem)
+
+    def lines_of(i):
+        return page_lines(doc[i], ocr_pages.get(i))
+
+    result = extract_lines(doc, lines_of)
+    if ocr_pages:
+        result["ocr"] = True
+    return result
+
+
+def find_index_page(doc, lines_of):
+    """没有按单元表时找字母序总表：后半本里第一张有字母标题（A / Aa）、且至少 15 行英文+中文词条的页。"""
+    for i in range(len(doc) // 2, len(doc)):
+        lines = lines_of(i)
+        letters = sum(1 for l in lines if re.fullmatch(LETTER_HEADING, line_text(l)))
+        if letters and sum(1 for l in lines if index_like(l)) >= 15:
+            return i
+    return None
+
+
+def extract_lines(doc, lines_of):
+    start = find_start_page(doc, lines_of)
     if start is None:
-        return {"units": [], "warnings": ["未找到按单元单词表"]}
+        # 只有字母序总表的书（沪教小学三年级）：单元靠总表里每个词的单元号（U3）在 normalize 里重建
+        index_start = find_index_page(doc, lines_of)
+        if index_start is None:
+            return {"units": [], "warnings": ["未找到按单元单词表"]}
+        families = headword_families(lines_of(index_start), index_like)
+        lines = ((i, spans) for i in range(index_start, len(doc)) for spans in lines_of(i))
+        return {"pages": [index_start, index_start], "units": [], "index": extract_index(lines, families),
+                "indexOnly": True, "warnings": ["没有按单元表，按总表的单元号分单元"]}
     units, warnings = [], []
     current = None
     entry_lines = []
-    families = headword_families(page_lines(doc[start]))
+    families = headword_families(lines_of(start))
 
     def flush():
         if entry_lines and current is not None:
@@ -396,7 +440,7 @@ def extract_book(pdf_path):
                 current["entries"].append(entry)
         entry_lines.clear()
 
-    lines = ((i, spans) for i in range(start, len(doc)) for spans in page_lines(doc[i]))
+    lines = ((i, spans) for i in range(start, len(doc)) for spans in lines_of(i))
     for i, spans in lines:
         text = line_text(spans)
         if SKIP_RE.match(text):

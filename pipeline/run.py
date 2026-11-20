@@ -1,13 +1,13 @@
 """管线入口：python run.py <step> [book_id ...]
 
-steps: vendor | manifest | fetch | extract | normalize | qa | enrich | build | all
+steps: vendor | manifest | fetch | ocr | extract | normalize | qa | enrich | build | all
 """
 import sys
 import warnings
 
 warnings.filterwarnings("ignore", message="urllib3 v2 only supports OpenSSL")  # macOS 自带 Python 的 LibreSSL
 
-from tw import build, enrich, extract, fetch, manifest, normalize, qa, vendor
+from tw import build, enrich, extract, fetch, manifest, normalize, ocr, qa, vendor
 
 
 def main(argv):
@@ -21,6 +21,8 @@ def main(argv):
         manifest.main(refresh="--refresh" in ids)
     elif step == "fetch":
         fetch.main(ids)
+    elif step == "ocr":  # 扫描版的书（没有文字层）先识别，结果缓存起来
+        ocr.main(ids)
     elif step == "extract":
         extract.main(ids)
     elif step == "normalize":

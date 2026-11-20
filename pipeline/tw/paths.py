@@ -9,6 +9,7 @@ CACHE = OUT / "cache"
 PDF_DIR = OUT / "pdf"
 EXTRACT_DIR = OUT / "extract"
 BUILD_DIR = OUT / "build"
+OCR_DIR = OUT / "ocr"
 
 REPO = "TapXWorld/ChinaTextbook"
 BRANCH = "master"

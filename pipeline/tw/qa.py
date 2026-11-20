@@ -9,11 +9,12 @@
 """
 import json
 
-from .normalize import NORMALIZED_DIR, clean_hw, make_id, repair
+from .normalize import NORMALIZED_DIR, entry_id
 from .paths import EXTRACT_DIR, OUT
 
 QA_DIR = OUT / "qa"
 PASS_COVERAGE = 0.98
+PASS_COVERAGE_OCR = 0.90  # 扫描版：两张表各自 OCR，各有错字，对不上的部分不全是提取错误
 MAX_EXTRA = 0.05
 
 
@@ -22,7 +23,7 @@ def check_book(extracted, normalized):
     unit_ids = {w["id"] for w in words}
     # 总表本来就不收专名、人名、缩写，这些「多出来」是正常的，不列
     plain_ids = {w["id"] for w in words if w["kind"] in ("word", "phrase") and not w.get("fromIndex")}
-    index_ids = {make_id(repair(clean_hw(e["hw"]))) for e in extracted.get("index", [])}
+    index_ids = {entry_id(e["hw"], extracted.get("ocr")) for e in extracted.get("index", [])}
     result = {
         "id": normalized["id"],
         "units": len(normalized["units"]),
@@ -40,7 +41,10 @@ def check_book(extracted, normalized):
     single = {w["id"] for w in words if w["kind"] == "word" and not w.get("fromIndex")}
     single_extra = len(single - index_ids) / len(single) if single else 1
     masked = result["filled"] >= len(words) * 0.1 and single_extra > MAX_EXTRA
-    result["pass"] = result["coverage"] is not None and result["coverage"] >= PASS_COVERAGE and not masked
+    result["ocr"] = bool(extracted.get("ocr"))
+    result["indexOnly"] = bool(extracted.get("indexOnly"))  # 单元是按总表的单元号重建的，覆盖率没有核对意义
+    threshold = PASS_COVERAGE_OCR if result["ocr"] else PASS_COVERAGE
+    result["pass"] = result["coverage"] is not None and result["coverage"] >= threshold and not masked
     return result
 
 
@@ -49,6 +53,10 @@ def render(results):
              "|---|---|---|---|---|---|---|---|---|---|"]
     for r in results:
         cov = f"{r['coverage']:.1%}" if r["coverage"] is not None else "无总表"
+        if r.get("indexOnly"):
+            cov += "（总表分单元）"
+        elif r.get("ocr"):
+            cov += "（OCR）"
         lines.append(f"| {r['id']} | {r['units']} | {r['words']} | {r['index']} | {cov} | {len(r['missing'])} "
                      f"| {len(r['extra'])} | {r['filled']} | {len(r['repaired'])} | {'通过' if r['pass'] else '待查'} |")
     for r in results:
