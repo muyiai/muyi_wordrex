@@ -28,12 +28,12 @@ UNIT_RE = re.compile(
 )
 # 按单元表之后的段落（字母序总表、人名表、不规则动词表）
 WORDLIST_TITLE_RE = re.compile(
-    r"^(Word ?list|Words and expressions( in each (unit|module))?|Vocabulary|Words in each (unit|module)"
+    r"^(Word ?list|W ?ords and expressions( in each (unit|module))?|Vocabulary|Words in each (unit|module)"
     r"|单\s*词\s*表|词\s*汇\s*表)\b", re.I)
 # 字母序总表的字母标题：A 或 Aa
 LETTER_HEADING = "|".join(f"{c}{c.lower()}?" for c in "ABCDEFGHIJKLMNOPQRSTUVWXYZ")
 STOP_RE = re.compile(
-    rf"^(Vocabulary( Index)?|Appendix [2-9]|词\s*汇\s*表|Name List|Irregular Verbs|Grammar reference|Glossary"
+    rf"^(Vocabulary( Index)?|WORD LIST|Word List|Appendix [2-9]|词\s*汇\s*表|Name List|Irregular Verbs|Grammar reference|Glossary"
     rf"|{LETTER_HEADING})$"
 )
 # 字母序总表之后的段落
@@ -49,10 +49,11 @@ def is_credits(text):
     return bool(CREDITS_RE.search(text)) and not re.search(r"[一-鿿]", re.sub(r"[英美]", "", text))
 SKIP_RE = re.compile(
     r"^(\d+|Appendix \d+|Appendices|Words and Expressions in Each (Unit|Module)|Words in Each (Unit|Module)"
-    r"|单\s*元\s*词\s*汇\s*表|（注：.*）|注：.*)$",
+    r"|单\s*元\s*词\s*汇\s*表|（注：.*）|注：.*|Phrases"
+    r"|Get(ting)? ready( [A-Z])?|Communication Workshop|Picture dictionary|Reading Club \d*)$",  # 北师大的栏目标题
     re.I,
 )
-PAGE_REF_RE = re.compile(r"p\.\s?S?\d+")
+PAGE_REF_RE = re.compile(r"[pP]\.\s?S?(?:\d+|[\dOIlS]{1,3}\b)")  # 扫描版会认成大写 P.35，数字认成字母 p.O
 POS_RE = re.compile(
     r"^(n|v|vt|vi|adj|adv|pron|prep|conj|interj|art|num|abbr|aux|modal|pl|link)\b", re.I
 )
@@ -161,7 +162,7 @@ def order_columns(lines):
     left_n = sum(1 for x in starts if x < right)
     if gap < 100 or min(left_n, len(starts) - left_n) < 3:
         return lines
-    boundary = right - 5
+    boundary = right - 15  # 右栏的单元标题比词条略靠左（外研初中：269 对 277）
 
     def spanning(l):
         """总表之后的段落标题（Proper nouns、Glossary……）把页面切成上下几段，每段内再分栏。
@@ -194,6 +195,10 @@ def by_rows(lines):
     return [l for row in rows for l in sorted(row, key=lambda l: l[0]["bbox"][0])]
 
 
+def same_row(a, b):
+    return a[0]["bbox"][1] <= line_center(b) <= a[0]["bbox"][3]
+
+
 def line_center(spans):
     return (spans[0]["bbox"][1] + spans[0]["bbox"][3]) / 2
 
@@ -213,6 +218,12 @@ def font_family(font):
     return re.sub(r"(Roman|Bold|Light|Medium|Regular|Italic|Semibold|Black|Book|Heavy)+$", "", name) or name
 
 
+def ocr_pos(text):
+    """扫描版里认错的词性：Qd. 有自主权的。Mr. 先生 这类真缩写除外。"""
+    m = re.match(r"([A-Za-z]{1,3})[.,，]\s*([\u4e00-\u9fff]|$)", text)
+    return bool(m) and m.group(1).lower() not in {"mr", "mrs", "ms", "dr", "st", "no", "jr", "sr", "vs"}
+
+
 def head_span(spans):
     """行首第一个有内容的 span；选学标记 * 有时单独一个 span（外研初中 "* " + "hello"）。"""
     return next((s for s in spans if s["text"].strip().strip(STAR_MARKS).strip()), spans[0])
@@ -227,6 +238,9 @@ def starts_entry(spans, families=None):
         and not is_italic(first)
         and re.match(r"[A-Za-z]", text) is not None
         and not PAGE_REF_RE.match(text)
+        and not POS_LEAD_RE.match(text)  # n. 名词…… 是上一条的义项（扫描版没有斜体可以区分）
+        and not re.fullmatch(r"[A-Za-z]{1,4}[.,，]\s*", line_text(spans))  # 单独一行的词性：ad. 被认成 Qd.
+        and not (first["font"] == "OCR" and ocr_pos(text))
         and (families is None or font_family(first["font"]) in families)
     )
 
@@ -345,6 +359,9 @@ def parse_entry(lines):
 
     hw = re.sub(r"\s+", " ", "".join(hw_parts)).strip()
     hw = re.sub(r"\s*/\s*$", "", hw)  # 去掉连在词头字体里的音标左斜杠
+    from_ocr = bool(spans) and spans[0]["font"] == "OCR"
+    if from_ocr and "/" in hw:
+        hw = hw.split("/", 1)[0].strip()  # 扫描版的音标认不准，常跟词头粘在一起：advocate/"aedvakert
     variant = ""
     m = VARIANT_RE.search(hw)
     if m:
@@ -376,6 +393,8 @@ def parse_entry(lines):
         entry["star"] = True
     if "▫" in marks:
         entry["elective"] = True
+    if from_ocr:
+        entry["ocr"] = True
     if variant:
         entry["variant"] = variant
     if ref:
@@ -400,8 +419,9 @@ def extract_book(pdf_path):
         return page_lines(doc[i], ocr_pages.get(i))
 
     result = extract_lines(doc, lines_of)
-    if ocr_pages:
-        result["ocr"] = True
+    entries = [e for u in result["units"] for e in u["entries"]] or result.get("index", [])
+    if entries and sum(1 for e in entries if e.get("ocr")) > len(entries) / 2:
+        result["ocr"] = True  # 大部分词条来自 OCR 才算扫描版；有文字层的书里偶尔一页图片不算
     return result
 
 
@@ -429,7 +449,9 @@ def extract_lines(doc, lines_of):
     units, warnings = [], []
     current = None
     entry_lines = []
-    families = headword_families(lines_of(start))
+    # 词头字体族逐页统计、取前 8 页的并集：外研初中七上的预备篇和正文用的是两种 Times
+    families = set().union(*(headword_families(lines_of(i)) for i in range(start, min(start + 8, len(doc)))))
+    section = 0
 
     def flush():
         if entry_lines and current is not None:
@@ -441,22 +463,30 @@ def extract_lines(doc, lines_of):
         entry_lines.clear()
 
     lines = ((i, spans) for i in range(start, len(doc)) for spans in lines_of(i))
+    prev = None
     for i, spans in lines:
         text = line_text(spans)
+        last, prev = prev, spans
         if SKIP_RE.match(text):
             continue
-        if STOP_RE.match(text) and units:  # 第一个单元之前的 Vocabulary 是词表自己的标题（沪教高中）
+        # 字母标题自成一行；和上一行在同一视觉行上的单个字母是释义的一部分（X-ray … n. X光 的「X」）
+        letter_in_row = len(text) <= 2 and last is not None and same_row(last, spans)
+        if STOP_RE.match(text) and units and not letter_in_row:  # 第一个单元之前的 Vocabulary 是词表自己的标题
             flush()
             index = extract_index(lines, families)
-            return {"pages": [start, i], "units": units, "index": index, "warnings": warnings}
+            return {"pages": [start, i], "units": finish_units(units), "index": index, "warnings": warnings}
+        if units and WORDLIST_TITLE_RE.match(text) and current and current["entries"]:
+            section += 1  # 又一张词表开始了（外研初中七上：预备篇 Module 1–4 之后是正文 Module 1–10）
+        if UNIT_RE.match(text) and spans[0]["bbox"][3] < 35:
+            continue  # 页眉里的 Starter / Unit 3 不是单元标题
         if UNIT_RE.match(text):
             flush()
             # 同一个单元标题可能画了两遍（全角 Ｕｎｉｔ１ 上再叠一层 Unit 1），而且叠加层排在整页内容之后：
-            # 重复的标题切回已有单元，不新开空单元
-            key = text.replace(" ", "").lower()
-            current = next((u for u in units if u["name"].replace(" ", "").lower() == key), None)
+            # 同一张词表里重复的标题切回已有单元，不新开空单元
+            key = (section, text.replace(" ", "").lower())
+            current = next((u for u in units if u["key"] == key), None)
             if current is None:
-                current = {"name": text, "entries": []}
+                current = {"name": text, "key": key, "entries": []}
                 units.append(current)
             continue
         if current is None:
@@ -470,7 +500,21 @@ def extract_lines(doc, lines_of):
             warnings.append(f"{current['name']}: 孤立续行 {text!r}")
     flush()
     warnings.append("没遇到结束标记，单词表可能延伸到书末")
-    return {"pages": [start, len(doc) - 1], "units": units, "index": [], "warnings": warnings}
+    return {"pages": [start, len(doc) - 1], "units": finish_units(units), "index": [], "warnings": warnings}
+
+
+def finish_units(units):
+    """去掉内部用的 key；前一张词表里和后面重名的单元加上 Starter 前缀（外研初中七上的预备篇）。"""
+    later = {}
+    for u in units:
+        later.setdefault(u["key"][1], []).append(u["key"][0])
+    out = []
+    for u in units:
+        name = u["name"]
+        if u["key"][0] < max(later[u["key"][1]]):
+            name = f"Starter {name}"
+        out.append({"name": name, "entries": u["entries"]})
+    return out
 
 
 def index_like(spans):
@@ -508,13 +552,14 @@ def extract_index(lines, families):
         return [t.lower() for t in re.findall(r"[A-Za-z]+", head)]
 
     def restarted(spans):
-        """字母序从头开始：上一个词首字母 ≥ m，这一个 ≤ c。"""
+        """字母序往回跳：总表结束了，或者中间插了别的表。"""
         if not words or not starts_entry(spans, families):
             return False
         prev = words[-1]["hw"][:1].lower()
         tokens = head_tokens(spans)
         # 词组子条目不算：responsibility 下面的 be responsible for 含有首字母相同的词
-        return bool(tokens) and prev >= "m" and tokens[0][0] <= "c" and not any(t[0] == prev for t in tokens)
+        # 往回跳了两个字母以上（z 之后的 Goldilocks 故事页、W 部中间插的人名表）
+        return bool(tokens) and ord(tokens[0][0]) <= ord(prev) - 2 and not any(t[0] == prev for t in tokens)
 
     suspended = None  # 挂起时所在的页
 

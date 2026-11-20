@@ -8,6 +8,7 @@
 不少书的总表本来就只收一部分词（人教小学五、六年级）。
 """
 import json
+import re
 
 from .normalize import NORMALIZED_DIR, entry_id
 from .paths import EXTRACT_DIR, OUT
@@ -23,7 +24,12 @@ def check_book(extracted, normalized):
     unit_ids = {w["id"] for w in words}
     # 总表本来就不收专名、人名、缩写，这些「多出来」是正常的，不列
     plain_ids = {w["id"] for w in words if w["kind"] in ("word", "phrase") and not w.get("fromIndex")}
-    index_ids = {entry_id(e["hw"], extracted.get("ocr")) for e in extracted.get("index", [])}
+    index_ids = {entry_id(e["hw"], e.get("ocr")) for e in extracted.get("index", [])}
+    if extracted.get("ocr"):  # OCR 常丢词组里的空格（in the faceof），比较时只看字母
+        squash = lambda ids: {re.sub(r"[\W_]+", "", i) for i in ids}
+        unit_ids, plain_ids, index_ids = squash(unit_ids), squash(plain_ids), squash(index_ids)
+    if len(index_ids) < len(words) * 0.15:
+        index_ids = set()  # 太短的「总表」不是词汇表（沪教高中书后是 12 个语法术语）
     result = {
         "id": normalized["id"],
         "units": len(normalized["units"]),

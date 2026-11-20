@@ -26,11 +26,10 @@ REF_RE = re.compile(r"^U\d{1,2}$")  # 沪教小学总表的单元号 U3：接在
 HEADING_RE = re.compile(r"^(Unit|Module|Lesson) ([sSlIoOzZ\d]{1,2})$")
 
 
-def needs_ocr(doc):
-    """书的后 40% 几乎没有文字层（每页不到 50 个字符）。"""
-    start = int(len(doc) * 0.6)
-    pages = range(start, len(doc))
-    return sum(len(doc[i].get_text().strip()) for i in pages) / max(1, len(pages)) < 50
+def pages_to_ocr(doc):
+    """书后 BACK_PAGES 页里没有文字层的页。整本扫描的书就是全部；有文字层的书里偶尔也有一页是图片
+    （外研初中七上的预备篇词表第 4 页）。"""
+    return [i for i in range(max(0, len(doc) - BACK_PAGES), len(doc)) if len(doc[i].get_text().strip()) < 20]
 
 
 def cache_path(book_id):
@@ -38,12 +37,12 @@ def cache_path(book_id):
 
 
 def run_book(book_id):
-    """识别一本书的后 BACK_PAGES 页，缓存每页的识别行（坐标换算成 PDF 的点）。已有缓存就跳过。"""
+    """识别一本书后面没有文字层的页，缓存每页的识别行（坐标换算成 PDF 的点）。已有缓存就跳过。"""
     out = cache_path(book_id)
     if out.exists():
         return json.loads(out.read_text(encoding="utf-8"))
     doc = fitz.open(PDF_DIR / f"{book_id}.pdf")
-    pages = list(range(max(0, len(doc) - BACK_PAGES), len(doc)))
+    pages = pages_to_ocr(doc)
     result = {}
     with tempfile.TemporaryDirectory() as tmp:
         images = {}
@@ -97,7 +96,7 @@ def page_lines(observations, page_width):
             is_ref = bool(REF_RE.match(text))
             too_far = gap > page_width * (REF_GAP if is_ref else ROW_GAP)
             new_entry = (re.match(r"[A-Za-z*]", text) and not is_ref
-                         and any(re.search(r"[\u4e00-\u9fff]|\d\s*$", r["text"]) for r in row))
+                         and any(re.search(r"[\u4e00-\u9fff]|[\d）)]\s*$", r["text"]) for r in row))
             if row and (too_far or new_entry):
                 rows.append(row)
                 row = []
@@ -129,7 +128,7 @@ def main(ids=None):
         pdf = PDF_DIR / f"{b['id']}.pdf"
         if not pdf.exists() or cache_path(b["id"]).exists():
             continue
-        if not needs_ocr(fitz.open(pdf)):
+        if not pages_to_ocr(fitz.open(pdf)):
             continue
         pages = run_book(b["id"])
         print(f"ocr: {b['id']} {len(pages)} 页 {sum(len(v) for v in pages.values())} 行")
