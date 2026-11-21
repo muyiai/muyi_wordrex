@@ -302,6 +302,9 @@ def parse_entry(lines):
         text = PAGE_REF_RE.sub("", text)
         if not text.strip():
             continue
+        if is_ipa(s) and phase == "body" and senses:
+            senses[-1]["zh"] += decode_ipa(text, s["font"])  # 释义里引的别的词的音标：（= television /ˈtelɪvɪʒn/）
+            continue
         if is_ipa(s):
             phase = "ipa"
             ipa_parts.append(decode_ipa(text, s["font"]))

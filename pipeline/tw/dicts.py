@@ -47,15 +47,22 @@ def rank(word):
 
 
 def ecdict_rows(words):
-    """只取 words（小写）里出现的行；同一个词有大小写多条时，优先完全小写的那条。"""
+    """只取 words（小写）里出现的行：小写词 -> 这个词所有大小写写法的行（Ms / MS、Mum / mum 是不同的词条）。"""
     words = set(words)
     found = {}
     with open(ECDICT_CSV, encoding="utf-8", newline="") as f:
         for row in csv.DictReader(f):
             key = row["word"].lower()
-            if key in words and (key not in found or row["word"] == key):
-                found[key] = row
+            if key in words:
+                found.setdefault(key, []).append(row)
     return found
+
+
+def pick_case(rows, hw):
+    """同一个小写词的几条里挑一条：先要和课本写法大小写完全一致的（Ms. -> Ms，不要 MS 微软），再要全小写的。"""
+    forms = {hw, hw.rstrip("."), hw.replace(".", "")}
+    return (next((r for r in rows if r["word"] in forms), None)
+            or next((r for r in rows if r["word"] == r["word"].lower()), None) or rows[0])
 
 
 @lru_cache(maxsize=None)

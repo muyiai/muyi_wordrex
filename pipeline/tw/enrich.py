@@ -57,12 +57,12 @@ def lookup(hw, atlas, ecdict):
     """返回 (atlas_entry, ecdict_row, lemma)。lemma 非空表示是按原形查到的。"""
     keys = lookup_keys(hw)
     a = next((atlas[k] for k in keys if k in atlas), None)
-    e = next((ecdict[k] for k in keys if k in ecdict), None)
+    e = next((dicts.pick_case(ecdict[k], hw) for k in keys if k in ecdict), None)
     if a or e:
         return a, e, ""
     base = next((dicts.lemmas()[k] for k in keys if k in dicts.lemmas()), "")
     if base:
-        return atlas.get(base), ecdict.get(base), base
+        return atlas.get(base), dicts.pick_case(ecdict[base], base) if base in ecdict else None, base
     return None, None, ""
 
 
@@ -83,6 +83,9 @@ def build_entry(wid, occ, atlas, ecdict):
     elif e:
         entry.update({"uk": occ.get("ipa") or ecdict_ipa(e["phonetic"]), "senses": ecdict_senses(e["translation"]),
                       "src": "ecdict"})
+        if occ["senses"] and (occ["hw"][:1].isupper() or occ["kind"] in ("abbr", "proper", "name")):
+            # 大写词、缩写在 ECDICT 里常查到同形的别的词（Mum -> 菊花），课本有释义就用课本的
+            entry.update({"senses": occ["senses"], "src": "textbook"})
     else:
         entry.update({"senses": occ["senses"], "src": "textbook"})
     if not entry.get("uk") and occ.get("ipa"):
@@ -107,7 +110,9 @@ def collect_words():
             for w in unit["words"]:
                 first = words.setdefault(w["id"], dict(w))
                 if not first.get("ipa") and w.get("ipa"):
-                    first["ipa"] = w["ipa"]  # 第一次出现没有音标（如短语表），用后面书里的
+                    first["ipa"] = w["ipa"]  # 第一次出现没有音标（如短语表、扫描版），用后面书里的
+                if not first["senses"] and w["senses"]:
+                    first["senses"] = w["senses"]  # 释义同理
     return words
 
 

@@ -5,7 +5,8 @@
   "scripts": {
     "typecheck": "tsc --noEmit -p . && tsc --noEmit -p tests",
     "test": "vitest run",
-    "dev:data": "python3 -m http.server 8787 --directory pipeline/out/build"
+    "dev:data": "python3 pipeline/tools/serve.py 8787",
+    "web": "sh scripts/web.sh"
   },
   "devDependencies": {
     "@types/node": "^22.20.5",

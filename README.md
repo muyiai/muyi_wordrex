@@ -54,6 +54,11 @@ npm run dev:data    # 在 http://localhost:8787 提供 pipeline/out/build 的数
 | `pages/word` | 单词详情：英美音标、课本释义、词典释义、例句（小学初中只给短句）、搭配、词族、提示，上一个/下一个 |
 | `pages/about` | 数据来源与授权署名 |
 
+浏览器预览（weweb，可选）：`npm install -g weweb-cli` 后 `npm run web`（会先把 TypeScript 编译到 `.weweb/`），
+打开 http://localhost:3000。数据服务 `npm run dev:data` 带 CORS 和 JSONP（weweb 在浏览器里把 `wx.request` 实现成 JSONP）。
+注意：weweb（2018 年前后的实现）没有 `wx.env`、`wx.getFileSystemManager`，它导航栏的全局 `.head` 样式也会和页面样式冲突，
+所以目前页面在 weweb 里打不开。小程序代码不为 weweb 做改动，以微信开发者工具和真机为准。
+
 数据：`catalog.json` 每次启动拉取；`books/<id>.json` 和这本书的词典 `books/<id>.dict.json` 按目录版本号缓存在
 用户文件目录（`lib/data.ts`、`lib/wx-io.ts`）。
 

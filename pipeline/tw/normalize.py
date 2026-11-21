@@ -244,7 +244,7 @@ def normalize_book(extracted):
             word = {
                 "id": make_id(fixed),
                 "hw": fixed,
-                "ipa": e["ipa"],
+                "ipa": "" if e.get("ocr") else e["ipa"],  # OCR 认出来的音标不可靠（she /j:/），宁缺毋滥
                 "senses": [] if bad_zh else e["senses"],
                 "kind": classify(fixed, e["senses"]),
                 "core": e["core"],
