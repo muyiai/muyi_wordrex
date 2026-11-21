@@ -61,3 +61,9 @@ def test_enrich_uses_generated_entry_only_without_atlas():
     atlas = {"look forward to": {**g, "id": "look-forward-to", "cefr": "B1", "topic": "daily", "col": [], "fam": [],
                                  "syn": [], "ant": [], "tip": ""}}
     assert build_entry("look_forward_to", occ, atlas, {}, {"look_forward_to": g})["src"] == "atlas"
+
+
+def test_uses_item_accepts_irregular_forms():
+    assert forge.uses_item("Weeds soon took over the garden.", {"word": "take over", "kind": "phrase"})
+    assert forge.uses_item("She went to bed early.", {"word": "go to bed", "kind": "phrase"})
+    assert not forge.uses_item("I am happy at home.", {"word": "nappy", "kind": "word"})

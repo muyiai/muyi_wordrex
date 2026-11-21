@@ -215,6 +215,8 @@ def todo():
             continue
         if e["kind"] == "word" and not dicts.legit(e["w"]):
             continue  # OCR 认错、修不回来的杂条（hbrary、toumament）不生成
+        if len(e["w"].split()) > 7 or re.search(r"[^A-Za-z0-9 '\-.,!?/()…]", e["w"]):
+            continue  # 混进来的英文释义（the willingness to work hard and …）、带引号等乱码的词头
         items.append({"id": wid, "word": e["w"], "kind": e["kind"], "stage": stage[wid], "notes": notes.get(wid, ""),
                       "aid": aid_of(wid)})
     # 小学、初中的词先做；同学段内单词在前
@@ -237,10 +239,16 @@ def user_prompt(batch):
 
 
 def uses_item(sentence, item):
-    """例句里要真的用到这个词（允许屈折变化、短语里的 sth/sb/... 占位）。"""
-    text = sentence.lower()
+    """例句里要真的用到这个词：允许屈折变化（含不规则的 take over -> took over），不管短语里的 sth/sb 占位。"""
+    tokens = re.findall(r"[a-z']+", sentence.lower())
+    lemmas = dicts.lemmas()
     words = [w for w in re.findall(r"[a-z']+", item["word"].lower()) if w not in {"sth", "sb", "one's", "oneself"}]
-    return all(re.search(r"\b" + re.escape(w[:max(3, len(w) - 2)]), text) for w in words[:3])
+
+    def used(w):
+        stem = w[: max(3, len(w) - 2)]
+        return any(t.startswith(stem) or lemmas.get(t) == w or lemmas.get(t, t) == lemmas.get(w, w) for t in tokens)
+
+    return all(used(w) for w in words[:3])
 
 
 def check_entry(e, item):
@@ -262,17 +270,48 @@ def gen_text_batch(env, model, batch):
         entries = json.loads(text)["entries"]
         if len(entries) != len(batch):
             raise ValueError(f"应有 {len(batch)} 条，返回 {len(entries)} 条")
-        for e, it in zip(entries, batch):
-            check_entry(e, it)
         return entries
 
+    # 只有接口错误、JSON 不合格才整批重试；单条不合格的只记下来，合格的照常保存（不为一条重做整批）
+    bad = []
     for e, it in zip(with_retry(call), batch):
+        try:
+            check_entry(e, it)
+        except ValueError as err:
+            bad.append((it, str(err)))
+            continue
         e.update({"id": it["id"], "aid": it["aid"], "stage": it["stage"], "kind": it["kind"], "src": it["word"]})
         (TEXT_DIR / f"{it['aid']}.json").write_text(json.dumps(e, ensure_ascii=False), encoding="utf-8")
+    record_failures(bad)
+    if bad:
+        raise ValueError(f"{len(bad)} 条不合格：" + "；".join(msg for _, msg in bad)[:300])
+
+
+FAILED = FORGE / "failed.json"
+_failed_lock = threading.Lock()
+MAX_ATTEMPTS = 2  # 同一个词不合格两次就不再自动重试（多半是混进来的杂条），--retry-failed 可强制
+
+
+def failures():
+    return json.loads(FAILED.read_text(encoding="utf-8")) if FAILED.exists() else {}
+
+
+def record_failures(bad):
+    if not bad:
+        return
+    with _failed_lock:
+        data = failures()
+        for it, msg in bad:
+            rec = data.setdefault(it["aid"], {"word": it["word"], "attempts": 0})
+            rec["attempts"] += 1
+            rec["last"] = msg[:200]
+        FAILED.write_text(json.dumps(data, ensure_ascii=False, indent=1), encoding="utf-8")
 
 
 def run_text(args):
-    items = [it for it in todo() if not (TEXT_DIR / f"{it['aid']}.json").exists()]
+    failed = {} if args.retry_failed else failures()
+    items = [it for it in todo() if not (TEXT_DIR / f"{it['aid']}.json").exists()
+             and failed.get(it["aid"], {}).get("attempts", 0) < MAX_ATTEMPTS]
     if args.limit:
         items = items[: args.limit]
     batches = [items[i: i + args.batch] for i in range(0, len(items), args.batch)]
@@ -285,6 +324,7 @@ def run_text(args):
     TEXT_DIR.mkdir(parents=True, exist_ok=True)
     run_pool(batches, lambda b: gen_text_batch(env, env["TW_TEXT_MODEL"], b), args.workers,
              label=lambda b: b[0]["word"])
+    write_flags_report()
 
 
 # ---------- 插画 ----------
@@ -415,20 +455,39 @@ def media_bits(aid):
     return bits
 
 
+def usable(e):
+    """模型标了 flag、而且改了词头的不用：多半是混进来的杂条（appeal to to attract or interest somebody），
+    例句写的是这个错误本身。只指出课本释义有问题、词头没改的照常用。"""
+    return not e.get("flag") or e["w"].strip().lower() == e["src"].strip().lower()
+
+
 def load_by_id():
     """enrich 用：wordId -> 生成的词条（带媒体位）。"""
     if not TEXT_DIR.exists():
         return {}
-    return {e["id"]: {**e, "m": media_bits(e["aid"])} for e in generated().values()}
+    return {e["id"]: {**e, "m": media_bits(e["aid"])} for e in generated().values() if usable(e)}
+
+
+def write_flags_report():
+    """模型标出的问题汇总成清单，供人工修课本数据（OCR 认错的释义、混进来的杂条）。"""
+    flagged = sorted((e for e in generated().values() if e.get("flag")), key=lambda e: (usable(e), e["src"].lower()))
+    lines = ["# 生成词条时模型标出的问题", "", f"共 {len(flagged)} 条。「未使用」的词条不会进小程序。", "",
+             "| 课本词头 | 模型词头 | 说明 | 是否使用 |", "|---|---|---|---|"]
+    for e in flagged:
+        lines.append(f"| {e['src']} | {e['w']} | {e['flag']} | {'使用' if usable(e) else '未使用'} |")
+    (FORGE / "flags.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return flagged
 
 
 def main(argv):
     ap = argparse.ArgumentParser(prog="run.py forge")
-    ap.add_argument("what", choices=["text", "images", "audio"])
+    ap.add_argument("what", choices=["text", "images", "audio", "flags"])
     ap.add_argument("--limit", type=int, default=0)
     ap.add_argument("--workers", type=int, default=4)
     ap.add_argument("--batch", type=int, default=10)
     ap.add_argument("--floor", type=int, default=30000, help="ElevenLabs 剩余额度下限")
     ap.add_argument("--dry-run", action="store_true")
+    ap.add_argument("--retry-failed", action="store_true", help="不合格过两次的词也重试")
     args = ap.parse_args(argv)
-    {"text": run_text, "images": run_images, "audio": run_audio}[args.what](args)
+    {"text": run_text, "images": run_images, "audio": run_audio, "flags": lambda a: print(
+        f"flags: {len(write_flags_report())} 条 -> {FORGE / 'flags.md'}")}[args.what](args)
