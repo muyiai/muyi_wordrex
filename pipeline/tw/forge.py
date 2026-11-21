@@ -130,7 +130,7 @@ def chat(env, payload, timeout=600):
     """流式请求，长输出不会被代理的空闲超时掐断。"""
     req = urllib.request.Request(
         env["TW_LLM_BASE_URL"].rstrip("/") + "/chat/completions",
-        data=json.dumps({**payload, "stream": True}).encode(),
+        data=json.dumps({**payload, "stream": True, "stream_options": {"include_usage": True}}).encode(),
         headers={"Content-Type": "application/json", "Authorization": "Bearer " + env["TW_LLM_API_KEY"]},
     )
     parts = []
@@ -149,7 +149,21 @@ def chat(env, payload, timeout=600):
             for ch in obj.get("choices", []):
                 if (ch.get("delta") or {}).get("content"):
                     parts.append(ch["delta"]["content"])
+            if obj.get("usage"):
+                log_usage(payload["model"], obj["usage"])
     return "".join(parts)
+
+
+USAGE_LOG = FORGE / "usage.jsonl"
+_usage_lock = threading.Lock()
+
+
+def log_usage(model, usage):
+    """每次调用的 token 用量，估算全量费用用。"""
+    with _usage_lock:
+        USAGE_LOG.parent.mkdir(parents=True, exist_ok=True)
+        with open(USAGE_LOG, "a", encoding="utf-8") as f:
+            f.write(json.dumps({"t": int(time.time()), "model": model, **usage}) + "\n")
 
 
 def with_retry(fn, tries=4, base=6):
