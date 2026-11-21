@@ -1,3 +1,4 @@
+import { syncProgress } from '../../lib/cloud-sync'
 import { streak } from '../../lib/progress'
 import { loadProgress } from '../../lib/progress-store'
 import { learnedCount, masteredCount, StudyWord, todayPlan } from '../../lib/session'
@@ -34,6 +35,7 @@ Page({
     }
     if (bookId !== this.data.bookId || this.data.state !== 'ready') this.load(bookId)
     else this.refreshToday() // 学完一轮回来，数字要更新
+    syncProgress(60000).then((changed) => changed && this.data.state === 'ready' && this.refreshToday())
   },
 
   async load(bookId: string) {

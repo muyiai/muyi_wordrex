@@ -39,7 +39,7 @@ bookId 形如 `jh-pep-7a`（初中·人教·七年级上册）、`sh-pep-b1`（�
 npm install
 npm run typecheck   # 用官方 miniprogram-api-typings 做类型检查
 npm test            # vitest：哈希与 Python 一致、数据加载与缓存、展示逻辑、管线产物格式
-npm run dev:data    # 在 http://localhost:8787 提供 pipeline/out/build 的数据
+npm run dev:data    # 在 http://localhost:8787 提供 pipeline/out/publish（先 python run.py publish）：data/ 数据、media/ 插画和录音
 ```
 
 用微信开发者工具「导入项目」选择仓库根目录（`project.config.json` 指向 `miniprogram/`），AppID 先用测试号；
@@ -65,6 +65,23 @@ npm run dev:data    # 在 http://localhost:8787 提供 pipeline/out/build 的数
 数据：`catalog.json` 每次启动拉取；`books/<id>.json` 和这本书的词典 `books/<id>.dict.json` 按目录版本号缓存在
 用户文件目录（`lib/data.ts`、`lib/wx-io.ts`）。
 
+## 上线（M4）：云开发
+
+1. 注册小程序拿到 AppID，在开发者工具里开通云开发，拿到环境 ID。
+2. 填配置：`project.config.json` 的 `appid`；`miniprogram/config.ts` 的 `CLOUD_ENV`。
+3. 进度同步：开发者工具里右键 `cloudfunctions/sync` →「上传并部署：云端安装依赖」；云数据库新建集合 `progress`
+   （云函数按 openid 读写，每个用户一条）。没填 `CLOUD_ENV` 时进度只存在本机。
+4. 数据和媒体：
+   ```bash
+   cd pipeline
+   ../.venv/bin/python run.py vendor --media   # 词光媒体（课本用到的约 2 万个文件）
+   ../.venv/bin/python run.py publish          # 整理到 out/publish/（约 2.8 万个文件、620 MB）
+   npx -p @cloudbase/cli@3 tcb login           # 登录一次
+   ../.venv/bin/python run.py upload --env <环境ID>   # 只传新增或变化的文件
+   ```
+   云存储权限设为「所有用户可读」，把访问域名填进 `config.ts`：`DATA_BASE = 'https://<域名>/wordrex/data'`、
+   `MEDIA_BASE = 'https://<域名>/wordrex/media'`；数据域名加到小程序后台的 request 合法域名。
+
 ## 进度
 
 - [x] M0 单本书跑通管线
@@ -77,5 +94,6 @@ npm run dev:data    # 在 http://localhost:8787 提供 pipeline/out/build 的数
 - [x] M2 小程序骨架（选教材 / 单元 / 单词浏览）：代码完成，类型检查和单测通过，待在微信开发者工具里实际运行
 - [x] M3 FSRS 复习与题型：代码完成，单测（含用真实课本组题）通过，待在开发者工具里实际运行；
   学习进度存在本地，复习只覆盖当前这本书的词；听音题和插画要等 M4 配好媒体地址后启用
-- [ ] M4 云开发同步与资源上云
+- [x] M4 云开发同步与资源上云：代码完成（云函数 sync 及合并规则、小程序端同步、publish / upload 命令），
+  测试通过；待填 AppID、云开发环境 ID 后部署云函数、上传数据和媒体
 - [ ] M5 提审

@@ -1,3 +1,4 @@
+import { syncProgress } from '../../lib/cloud-sync'
 import { Progress, QuizKind, Session, Step } from '../../lib/progress'
 import { loadProgress, saveProgress } from '../../lib/progress-store'
 import { advance, answer, buildSession, gradeFor, sessionStats, StudyWord } from '../../lib/session'
@@ -79,6 +80,7 @@ Page({
     const s = progress.session as Session
     if (s.index >= s.steps.length) {
       this.setData({ state: 'done', stats: sessionStats(s) })
+      syncProgress() // 学完一轮马上同步
       return
     }
     const step = s.steps[s.index]

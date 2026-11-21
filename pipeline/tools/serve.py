@@ -1,4 +1,4 @@
-"""开发用静态服务器：提供 pipeline/out/build。
+"""开发用静态服务器：提供 pipeline/out/publish（run.py publish 生成，data/ 是数据、media/ 是插画和录音）。
 
 - 带 CORS 头：浏览器里的 weweb 页面在另一个端口，跨域
 - 支持 JSONP：weweb 在浏览器里把 wx.request 实现成 JSONP（?callback=xxx），返回 xxx(<json>)
@@ -12,7 +12,7 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 
-BUILD = Path(__file__).resolve().parent.parent / "out" / "build"
+BUILD = Path(__file__).resolve().parent.parent / "out" / "publish"
 CALLBACK_RE = re.compile(r"^[A-Za-z_$][\w$.]*$")
 
 
