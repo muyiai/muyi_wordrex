@@ -122,6 +122,50 @@ def known(word):
     return False
 
 
+def legit(word):
+    """像个正常的词：认识的、每一段都认识的连字符词（sit-up、real-life），或者 ECDICT 收了但没有词频的
+    罕见词（earmuff、paragliding）。生成词条时用它排除 OCR 杂条。"""
+    if known(word) or word.lower() in ecdict_words():
+        return True
+    parts = [p for p in word.split("-") if p]
+    return len(parts) > 1 and all(known(p) for p in parts)
+
+
+# 切分粘连短语时允许的短词：两个字母的只认这些；三个字母的还要很常用（免得 triathlete 被切成 tri athlete）
+SHORT_WORDS = {"a", "i", "an", "as", "at", "be", "by", "do", "go", "he", "if", "in", "is", "it", "me", "my", "no",
+               "of", "on", "or", "so", "to", "up", "us", "we", "sb", "sth", "the", "and", "for", "not", "one", "out",
+               "off", "but", "you", "all", "can", "how", "our", "who", "get", "put", "use", "way", "own", "too",
+               "are", "was", "has", "had", "did", "got", "ran", "won", "met", "saw", "his", "her", "him", "its"}
+
+
+def segment(token):
+    """空格丢了的短语切回去：boildownto -> boil down to，callonsbtodosth -> call on sb to do sth。
+    只切 ECDICT 根本没收的串（cannot、schoolbag 是真词）；词越少越好，同样多时越常用越好。"""
+    t = token.lower()
+    if not t.isalpha() or len(t) < 5 or t in ecdict_words():
+        return None
+    best = [None] * (len(t) + 1)
+    best[0] = (0.0, [])
+    for i in range(len(t)):
+        if best[i] is None:
+            continue
+        for j in range(i + 1, min(len(t), i + 20) + 1):
+            w = t[i:j]
+            if w in ("sb", "sth"):
+                cost = 0.0  # 课本词组的占位词：put sth in place 要赢过 puts thin place
+            elif w in SHORT_WORDS or (len(w) == 3 and rank(w) < 3000) or (len(w) > 3 and known(w)):
+                # 屈折形式没有自己的词频，按原形算：strikes and 不能输给 strike sand
+                r = rank(w) if rank(w) < UNRANKED else rank(lemmas().get(w, w))
+                cost = 1.0 + min(r, COMMON_RANK) / COMMON_RANK
+            else:
+                continue
+            cand = (best[i][0] + cost, best[i][1] + [w])
+            if best[j] is None or cand[0] < best[j][0]:
+                best[j] = cand
+    words = best[len(t)][1] if best[len(t)] else []
+    return " ".join(words) if len(words) > 1 else None
+
+
 def proper_noun(word):
     """首字母大写且 ECDICT 收了这个词（专名一般没有词频）：the Andes、Cusco。"""
     return word[:1].isupper() and word.lower() in ecdict_words()

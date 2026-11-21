@@ -213,8 +213,8 @@ def todo():
     for wid, e in entries.items():
         if e["src"] == "atlas" or e["kind"] not in ("word", "phrase") or wid not in stage:
             continue
-        if e["kind"] == "word" and not dicts.known(e["w"]):
-            continue  # OCR 杂条（boildownto）、拼错的词：先修数据，不生成
+        if e["kind"] == "word" and not dicts.legit(e["w"]):
+            continue  # OCR 认错、修不回来的杂条（hbrary、toumament）不生成
         items.append({"id": wid, "word": e["w"], "kind": e["kind"], "stage": stage[wid], "notes": notes.get(wid, ""),
                       "aid": aid_of(wid)})
     # 小学、初中的词先做；同学段内单词在前

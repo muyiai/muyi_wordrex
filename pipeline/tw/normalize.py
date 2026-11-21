@@ -33,6 +33,12 @@ def split_note(hw):
     I'm = I am -> I'm / = I am，sign up (for sth) -> sign up / for sth。"""
     hw = re.sub(r"\s+", " ", hw).strip().replace("’", "'").replace("‘", "'")
     hw = hw.lstrip("*△▲▫•· ").rstrip(",;:“”\"").strip()
+    if ")" in hw and "(" not in hw:
+        hw = hw.replace(")", "").strip()  # burned)：括号的另一半在别处
+    hw = re.sub(r"(?<=[A-Za-z]{2})(?:\.{1,3}|⋯+)(?=[A-Za-z]{2})", " ... ", hw)  # compare.with -> compare ... with
+    m = re.fullmatch(r"([a-z]{3,})(?:[A-Z]|['”\"](?!(?:s|t|re|ve|ll|d|m)\b))\S{3,}", hw)
+    if m:
+        hw = m.group(1)  # 粘上的音标：undergroundYAndegraund、decade'dekerd
     if "(" in hw and ")" not in hw:  # 说明折到了下一行：show (、Thanksgiving (Thanksgiving
         hw, rest = hw.split("(", 1)
         return hw.strip(), rest.strip()
@@ -57,6 +63,9 @@ def repair_token(token):
     """
     if dicts.known(token) or dicts.proper_noun(token):
         return token
+    split = dicts.segment(token)
+    if split:
+        return split
     best, best_rank = token, dicts.COMMON_RANK
     for i in range(len(token) + 1):
         for ch in LETTERS:
@@ -81,6 +90,8 @@ def repair_ocr_token(token):
     lower = token.lower()
     if token != lower and not dicts.known(token) and dicts.known(lower):
         return lower  # psyChologist
+    if not dicts.known(token) and dicts.segment(token):
+        return dicts.segment(token)
     own = dicts.rank(token)
     # 屈折形式（are/has）在 ECDICT 里没有词频（own 是 UNRANKED 以上），认得就不动
     if (dicts.known(token) and (own <= 10000 or own >= dicts.UNRANKED)) or dicts.proper_noun(token):

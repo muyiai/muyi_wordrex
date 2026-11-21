@@ -1,6 +1,6 @@
 import pytest
 
-from tw.normalize import classify, make_id, repair
+from tw.normalize import classify, make_id, repair, split_note
 
 
 @pytest.mark.parametrize("raw, fixed", [
@@ -43,3 +43,30 @@ def test_classify(hw, senses, kind):
 ])
 def test_make_id(hw, wid):
     assert make_id(hw) == wid
+
+
+@pytest.mark.parametrize("raw, fixed", [
+    ("nextto", "next to"),  # 空格丢了的短语
+    ("boildownto", "boil down to"),
+    ("putsthinplace", "put sth in place"),  # 占位词优先
+    ("threestrikesandyouareout", "three strikes and you are out"),  # 屈折形式按原形算词频
+    ("pencilbox", "pencil box"),
+    ("cannot", "cannot"),  # ECDICT 收了的真词不拆
+    ("triathlete", "triathlete"),  # 不拆成 tri athlete
+])
+def test_repair_segments_merged_phrases(raw, fixed):
+    assert repair(raw) == fixed
+
+
+@pytest.mark.parametrize("raw, hw", [
+    ("burned)", "burned"),
+    ("compare.with", "compare ... with"),
+    ("try⋯on", "try ... on"),
+    ("undergroundYAndegraund", "underground"),  # 粘上的 OCR 音标
+    ("decade'dekerd", "decade"),
+    ("one's", "one's"),
+    ("o'clock", "o'clock"),
+    ("p.m.", "p.m."),
+])
+def test_split_note_cleanup(raw, hw):
+    assert split_note(raw)[0] == hw
