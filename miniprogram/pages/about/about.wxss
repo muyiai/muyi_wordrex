@@ -1,0 +1,22 @@
+.title {
+  font-size: 32rpx;
+  font-weight: 600;
+  margin-bottom: 16rpx;
+}
+
+.item {
+  margin-bottom: 20rpx;
+}
+
+.item:last-child {
+  margin-bottom: 0;
+}
+
+.name {
+  font-size: 28rpx;
+  margin-bottom: 4rpx;
+}
+
+.version {
+  text-align: center;
+}

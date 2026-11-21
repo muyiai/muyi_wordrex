@@ -1,0 +1,83 @@
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16rpx 32rpx;
+  background: var(--card);
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  border-bottom: 1rpx solid var(--line);
+}
+
+.switches {
+  display: flex;
+}
+
+.switch {
+  font-size: 24rpx;
+  padding: 8rpx 20rpx;
+  margin-left: 16rpx;
+  border-radius: 999rpx;
+  background: var(--bg);
+  color: var(--muted);
+}
+
+.switch.on {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.list {
+  padding-top: 8rpx;
+  padding-bottom: 8rpx;
+}
+
+.word {
+  padding: 22rpx 0;
+  border-bottom: 1rpx solid var(--line);
+}
+
+.word:last-child {
+  border-bottom: none;
+}
+
+.head .hw {
+  font-size: 34rpx;
+  font-weight: 600;
+  margin-right: 16rpx;
+}
+
+.head .hw.optional {
+  color: var(--muted);
+  font-weight: 400;
+}
+
+.head .ipa {
+  font-size: 24rpx;
+  margin-right: 12rpx;
+}
+
+.meaning {
+  font-size: 26rpx;
+  margin-top: 6rpx;
+  color: #4e5562;
+}
+
+.meaning.hidden {
+  color: var(--muted);
+  background: var(--bg);
+  border-radius: 8rpx;
+  padding: 4rpx 12rpx;
+  display: inline-block;
+}
+
+.legend {
+  font-size: 22rpx;
+  padding: 0 8rpx;
+}
+
+.error {
+  margin: 16rpx 0 40rpx;
+  word-break: break-all;
+}

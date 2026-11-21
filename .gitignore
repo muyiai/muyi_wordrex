@@ -9,6 +9,7 @@ pipeline/vendor/ecdict/
 pipeline/vendor/word-atlas/
 
 # 小程序
+node_modules/
 miniprogram/node_modules/
 miniprogram/miniprogram_npm/
 project.private.config.json

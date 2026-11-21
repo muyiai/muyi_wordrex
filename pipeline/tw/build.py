@@ -1,8 +1,10 @@
 """06 打包：生成小程序加载的数据。
 
   catalog.json        学段 -> 版本 -> 册 的目录树
-  books/<bookId>.json 一册书：单元 -> 词（课本释义、是否要求掌握、是否本系列首次出现）
-  dict/<n>.json       词典分块。n = fnv1a(wordId) % chunks，小程序端用同一个哈希算块号，不需要索引文件
+  books/<bookId>.json      一册书：单元 -> 词（课本释义、是否要求掌握、是否本系列首次出现）
+  books/<bookId>.dict.json 这册书用到的词典词条。小程序学一本书只下这一个文件
+  dict/<n>.json            全部词条分块，n = fnv1a(wordId) % chunks（查单个词用；一本书的词散在所有块里，
+                           所以学一本书不走这里）
 """
 import json
 import math
@@ -106,6 +108,8 @@ def main():
 
     for b in books:
         write(f"books/{b['id']}.json", b)
+        ids = {w["id"] for u in b["units"] for w in u["words"]}
+        write(f"books/{b['id']}.dict.json", {wid: entries[wid] for wid in sorted(ids) if wid in entries})
     buckets = [{} for _ in range(chunks)]
     for wid, entry in entries.items():
         buckets[chunk_of(wid, chunks)][wid] = entry

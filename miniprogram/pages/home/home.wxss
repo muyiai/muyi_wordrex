@@ -1,0 +1,54 @@
+.welcome {
+  font-size: 40rpx;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 12rpx;
+}
+
+.start {
+  margin-top: 64rpx;
+  width: 60%;
+}
+
+.error {
+  margin: 16rpx 0 40rpx;
+  word-break: break-all;
+}
+
+.book .edition {
+  font-size: 26rpx;
+  color: var(--muted);
+}
+
+.book .volume {
+  font-size: 44rpx;
+  font-weight: 600;
+  margin-bottom: 12rpx;
+}
+
+.switch {
+  margin: 0;
+}
+
+.units {
+  padding-top: 8rpx;
+  padding-bottom: 8rpx;
+}
+
+.unit {
+  padding: 24rpx 0;
+  border-bottom: 1rpx solid var(--line);
+}
+
+.unit:last-child {
+  border-bottom: none;
+}
+
+.unit-name {
+  font-size: 32rpx;
+}
+
+.footer {
+  text-align: center;
+  margin-top: 40rpx;
+}

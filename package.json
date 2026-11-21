@@ -1,0 +1,16 @@
+{
+  "name": "muyi-wordrex",
+  "private": true,
+  "description": "教材英语单词微信小程序（原生 + TypeScript）",
+  "scripts": {
+    "typecheck": "tsc --noEmit -p . && tsc --noEmit -p tests",
+    "test": "vitest run",
+    "dev:data": "python3 -m http.server 8787 --directory pipeline/out/build"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.5",
+    "miniprogram-api-typings": "^4.0.0",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0"
+  }
+}

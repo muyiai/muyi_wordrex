@@ -1,0 +1,28 @@
+<view wx:if="{{state === 'loading'}}" class="state">加载中…</view>
+
+<view wx:elif="{{state === 'error'}}" class="state">
+  <view>目录加载失败</view>
+  <view class="muted error">{{error}}</view>
+  <button class="btn-plain" bindtap="load">重试</button>
+</view>
+
+<block wx:else>
+  <view class="tabs">
+    <view wx:for="{{stages}}" wx:key="code" class="tab {{index === stageIndex ? 'active' : ''}}"
+          data-index="{{index}}" bindtap="switchStage">{{item.name}}</view>
+  </view>
+
+  <view class="container">
+    <view wx:for="{{stages[stageIndex].editions}}" wx:for-item="edition" wx:key="code" class="card">
+      <view class="edition-name">{{edition.name}}</view>
+      <view class="muted">{{edition.publisher}}</view>
+      <view class="books">
+        <view wx:for="{{edition.books}}" wx:for-item="book" wx:key="id"
+              class="book {{book.id === bookId ? 'current' : ''}}" data-id="{{book.id}}" bindtap="pick">
+          <view class="book-title">{{book.title}}</view>
+          <view class="book-count">{{book.words}} 词</view>
+        </view>
+      </view>
+    </view>
+  </view>
+</block>

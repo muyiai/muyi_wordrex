@@ -1,0 +1,33 @@
+<view wx:if="{{state === 'loading'}}" class="state">加载中…</view>
+
+<view wx:elif="{{state === 'error'}}" class="state">
+  <view>数据加载失败</view>
+  <view class="muted error">{{error}}</view>
+  <button class="btn-plain" bindtap="load">重试</button>
+</view>
+
+<block wx:else>
+  <view class="toolbar">
+    <view class="muted">{{words.length}} 个</view>
+    <view class="switches">
+      <view class="switch {{reqOnly ? 'on' : ''}}" bindtap="toggleReq">只看要求掌握</view>
+      <view class="switch {{hideMeaning ? 'on' : ''}}" bindtap="toggleHide">遮住释义</view>
+    </view>
+  </view>
+
+  <view class="container">
+    <view class="card list">
+      <view wx:for="{{words}}" wx:key="index" class="word" data-index="{{item.index}}" bindtap="openWord">
+        <view class="head">
+          <text class="hw {{item.req ? '' : 'optional'}}">{{item.hw}}</text>
+          <text wx:if="{{item.ipa}}" class="ipa">{{item.ipa}}</text>
+          <text wx:if="{{item.isNew}}" class="tag">新</text>
+        </view>
+        <view wx:if="{{hideMeaning && !revealed[item.index]}}" class="meaning hidden"
+              data-index="{{item.index}}" catchtap="reveal">点一下看释义</view>
+        <view wx:else class="meaning">{{item.meaning || '（暂无释义）'}}</view>
+      </view>
+    </view>
+    <view class="muted legend">灰色的是课本不要求掌握的词（专名、拓展词）；「新」表示这套教材里第一次出现</view>
+  </view>
+</block>

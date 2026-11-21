@@ -1,0 +1,38 @@
+<view class="container">
+  <view wx:if="{{state === 'empty'}}" class="state">
+    <view class="welcome">从小学到高中，按课本背单词</view>
+    <view class="muted">先选你正在学的教材和年级</view>
+    <button class="btn start" bindtap="chooseBook">选择教材</button>
+  </view>
+
+  <view wx:elif="{{state === 'loading'}}" class="state">加载中…</view>
+
+  <view wx:elif="{{state === 'error'}}" class="state">
+    <view>数据加载失败</view>
+    <view class="muted error">{{error}}</view>
+    <button class="btn-plain" bindtap="retry">重试</button>
+  </view>
+
+  <block wx:else>
+    <view class="card book">
+      <view class="row">
+        <view>
+          <view class="edition">{{edition}}</view>
+          <view class="volume">{{volume}}</view>
+        </view>
+        <button class="btn-plain switch" size="mini" bindtap="chooseBook">更换</button>
+      </view>
+      <view class="muted">{{units.length}} 个单元 · {{total}} 个单词和短语</view>
+    </view>
+
+    <view class="section-title">单元</view>
+    <view class="card units">
+      <view wx:for="{{units}}" wx:key="name" class="unit row" data-index="{{index}}" bindtap="openUnit">
+        <view class="unit-name">{{item.name}}</view>
+        <view class="muted">{{item.total}} 词 ›</view>
+      </view>
+    </view>
+
+    <view class="footer muted" bindtap="openAbout">关于与数据来源</view>
+  </block>
+</view>

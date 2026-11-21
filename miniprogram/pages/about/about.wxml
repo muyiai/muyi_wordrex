@@ -1,0 +1,24 @@
+<view class="container">
+  <view class="card">
+    <view class="title">数据来源</view>
+    <view class="item">
+      <view class="name">教材单词表</view>
+      <view class="muted">整理自各版本英语教材书后的单词表（教材电子版来自开源项目 ChinaTextbook）。本小程序只收录单词列表，不提供教材内容。</view>
+    </view>
+    <view class="item">
+      <view class="name">释义、例句、搭配、插画、录音</view>
+      <view class="muted">Word Atlas（词光），作者 Word Atlas contributors，以 CC BY 4.0 协议发布。</view>
+    </view>
+    <view class="item">
+      <view class="name">补充释义与音标</view>
+      <view class="muted">ECDICT，以 MIT 协议发布。</view>
+    </view>
+  </view>
+
+  <view class="card">
+    <view class="title">说明</view>
+    <view class="muted">词典内容部分由 AI 生成，未逐条人工校对；课本释义以教材为准。发现错误欢迎反馈。</view>
+  </view>
+
+  <view class="muted version">数据版本 {{version}}</view>
+</view>

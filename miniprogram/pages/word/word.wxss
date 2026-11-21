@@ -1,0 +1,110 @@
+.head .hw {
+  font-size: 56rpx;
+  font-weight: 700;
+  word-break: break-word;
+}
+
+.phonetics {
+  display: flex;
+  flex-wrap: wrap;
+  margin-top: 8rpx;
+}
+
+.ph {
+  margin-right: 32rpx;
+  font-size: 28rpx;
+}
+
+.speaker {
+  margin-left: 8rpx;
+  font-size: 26rpx;
+}
+
+.tags {
+  margin-top: 16rpx;
+}
+
+.label {
+  font-size: 24rpx;
+  color: var(--muted);
+  margin-bottom: 10rpx;
+}
+
+.label-inline {
+  font-size: 24rpx;
+  color: var(--muted);
+  margin-right: 16rpx;
+}
+
+.textbook {
+  font-size: 32rpx;
+}
+
+.sense {
+  margin-bottom: 12rpx;
+}
+
+.sense:last-child {
+  margin-bottom: 0;
+}
+
+.pos {
+  font-style: italic;
+  color: var(--accent);
+}
+
+.en {
+  font-size: 24rpx;
+}
+
+.illustration {
+  width: 100%;
+  border-radius: 20rpx;
+  margin-bottom: 24rpx;
+}
+
+.example {
+  margin-bottom: 16rpx;
+}
+
+.example:last-child {
+  margin-bottom: 0;
+}
+
+.ex-en {
+  font-size: 30rpx;
+}
+
+.col {
+  margin-bottom: 8rpx;
+}
+
+.col-en {
+  font-weight: 500;
+}
+
+.rel {
+  margin-bottom: 8rpx;
+  font-size: 28rpx;
+}
+
+.tip {
+  font-size: 28rpx;
+  color: #4e5562;
+}
+
+.nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 16rpx;
+}
+
+.nav button {
+  margin: 0;
+}
+
+.error {
+  margin: 16rpx 0 40rpx;
+  word-break: break-all;
+}

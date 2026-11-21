@@ -1,0 +1,68 @@
+<view wx:if="{{state === 'loading'}}" class="state">加载中…</view>
+
+<view wx:elif="{{state === 'error'}}" class="state">
+  <view>数据加载失败</view>
+  <view class="muted error">{{error}}</view>
+  <button class="btn-plain" bindtap="load">重试</button>
+</view>
+
+<view wx:else class="container">
+  <view class="card head">
+    <view class="hw">{{hw}}</view>
+    <view class="phonetics">
+      <view wx:if="{{uk}}" class="ph" data-src="{{ukAudio}}" bindtap="play">
+        <text class="muted">英</text> <text class="ipa">{{uk}}</text><text wx:if="{{ukAudio}}" class="speaker">🔊</text>
+      </view>
+      <view wx:if="{{us}}" class="ph" data-src="{{usAudio}}" bindtap="play">
+        <text class="muted">美</text> <text class="ipa">{{us}}</text><text wx:if="{{usAudio}}" class="speaker">🔊</text>
+      </view>
+    </view>
+    <view wx:if="{{tags.length}}" class="tags">
+      <text wx:for="{{tags}}" wx:key="*this" class="tag">{{item}}</text>
+    </view>
+  </view>
+
+  <view wx:if="{{textbook}}" class="card">
+    <view class="label">课本释义</view>
+    <view class="textbook">{{textbook}}</view>
+  </view>
+
+  <view wx:if="{{senses.length}}" class="card">
+    <view class="label">词典释义<text wx:if="{{lemma}}" class="muted">（原形 {{lemma}}）</text></view>
+    <view wx:for="{{senses}}" wx:key="index" class="sense">
+      <text class="pos">{{item.pos}}</text> {{item.zh}}
+      <view wx:if="{{item.en}}" class="en muted">{{item.en}}</view>
+    </view>
+  </view>
+
+  <image wx:if="{{image}}" class="illustration" src="{{image}}" mode="widthFix" lazy-load />
+
+  <view wx:if="{{examples.length}}" class="card">
+    <view class="label">例句</view>
+    <view wx:for="{{examples}}" wx:key="index" class="example">
+      <view class="ex-en" data-src="{{index === 0 ? exAudio : ''}}" bindtap="play">
+        {{item.en}}<text wx:if="{{index === 0 && exAudio}}" class="speaker">🔊</text>
+      </view>
+      <view class="muted">{{item.zh}}</view>
+    </view>
+  </view>
+
+  <view wx:if="{{cols.length}}" class="card">
+    <view class="label">常用搭配</view>
+    <view wx:for="{{cols}}" wx:key="en" class="col"><text class="col-en">{{item.en}}</text> <text class="muted">{{item.zh}}</text></view>
+  </view>
+
+  <view wx:if="{{fam || syn || ant}}" class="card">
+    <view wx:if="{{fam}}" class="rel"><text class="label-inline">词族</text>{{fam}}</view>
+    <view wx:if="{{syn}}" class="rel"><text class="label-inline">近义</text>{{syn}}</view>
+    <view wx:if="{{ant}}" class="rel"><text class="label-inline">反义</text>{{ant}}</view>
+  </view>
+
+  <view wx:if="{{tip}}" class="card tip">💡 {{tip}}</view>
+
+  <view class="nav">
+    <button class="btn-plain" size="mini" disabled="{{index === 0}}" data-step="{{-1}}" bindtap="go">上一个</button>
+    <text class="muted">{{index + 1}} / {{count}}</text>
+    <button class="btn-plain" size="mini" disabled="{{index + 1 >= count}}" data-step="{{1}}" bindtap="go">下一个</button>
+  </view>
+</view>
