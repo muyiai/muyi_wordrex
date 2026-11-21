@@ -60,6 +60,8 @@ def test_repair_segments_merged_phrases(raw, fixed):
 
 @pytest.mark.parametrize("raw, hw", [
     ("burned)", "burned"),
+    ("well-being n.", "well-being"),  # 粘上的词性
+    ("well-rounded ad.", "well-rounded"),
     ("compare.with", "compare ... with"),
     ("try⋯on", "try ... on"),
     ("undergroundYAndegraund", "underground"),  # 粘上的 OCR 音标

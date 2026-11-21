@@ -33,6 +33,7 @@ def split_note(hw):
     I'm = I am -> I'm / = I am，sign up (for sth) -> sign up / for sth。"""
     hw = re.sub(r"\s+", " ", hw).strip().replace("’", "'").replace("‘", "'")
     hw = hw.lstrip("*△▲▫•· ").rstrip(",;:“”\"").strip()
+    hw = re.sub(r"\s+(?:n|v|vt|vi|adj|adv|ad|prep|pron|conj|num|art|int|interj|abbr)\.$", "", hw)  # well-being n.
     if ")" in hw and "(" not in hw:
         hw = hw.replace(")", "").strip()  # burned)：括号的另一半在别处
     hw = re.sub(r"(?<=[A-Za-z]{2})(?:\.{1,3}|⋯+)(?=[A-Za-z]{2})", " ... ", hw)  # compare.with -> compare ... with
