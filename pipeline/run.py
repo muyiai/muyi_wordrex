@@ -1,13 +1,14 @@
 """管线入口：python run.py <step> [book_id ...]
 
 steps: vendor | manifest | fetch | ocr | extract | normalize | qa | enrich | build | all
+       forge text|images|audio [--limit N] [--dry-run]  生成词光没有的词条（见 tw/forge.py）
 """
 import sys
 import warnings
 
 warnings.filterwarnings("ignore", message="urllib3 v2 only supports OpenSSL")  # macOS 自带 Python 的 LibreSSL
 
-from tw import build, enrich, extract, fetch, manifest, normalize, ocr, qa, vendor
+from tw import build, enrich, extract, fetch, forge, manifest, normalize, ocr, qa, vendor
 
 
 def main(argv):
@@ -33,6 +34,8 @@ def main(argv):
         enrich.main()
     elif step == "build":
         build.main()
+    elif step == "forge":
+        forge.main(ids)
     elif step == "all":  # 已下载的书从提取跑到打包
         extract.main(ids)
         normalize.main(ids)

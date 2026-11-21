@@ -87,7 +87,7 @@ export interface Entry {
   aid?: string // 词光 id：媒体文件名
   m?: number // 媒体位：1 插画、2 英音、4 美音、8 例句朗读
   tags?: string[] // zk 中考、gk 高考、cet4 ……
-  src: 'atlas' | 'ecdict' | 'textbook'
+  src: 'atlas' | 'gen' | 'ecdict' | 'textbook' // gen：词光没有、按词光做法生成的词条（pipeline/tw/forge.py）
   lemma?: string
 }
 

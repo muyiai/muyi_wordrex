@@ -7,7 +7,7 @@
 import json
 import re
 
-from . import dicts
+from . import dicts, forge
 from .normalize import NORMALIZED_DIR
 from .paths import OUT
 
@@ -96,7 +96,7 @@ def atlas_base_form(row, atlas):
     return None
 
 
-def build_entry(wid, occ, atlas, ecdict):
+def build_entry(wid, occ, atlas, ecdict, forged=None):
     """occ：这个词在各书里的第一次出现（normalize 后的 word），用来取展示词头、课本音标和兜底释义。
 
     音标优先级：词光（带重音）> 课本 > ECDICT（老式记法，如 /faiv/）。
@@ -107,7 +107,15 @@ def build_entry(wid, occ, atlas, ecdict):
         a = atlas_spelling(occ["hw"], atlas)
     base = atlas_base_form(e, atlas) if e and not a and occ["kind"] == "word" else None
     entry = {"id": wid, "w": occ["hw"], "kind": occ["kind"]}
-    if base:
+    g = (forged or {}).get(wid)
+    if g and not a and not base:
+        # 词光没有、按词光的做法生成的词条（tw/forge.py）
+        entry.update({
+            "uk": g.get("uk", ""), "us": g.get("us", ""), "senses": g["senses"], "ex": g["ex"], "col": g.get("col", []),
+            "fam": g.get("fam", []), "syn": g.get("syn", []), "ant": g.get("ant", []), "tip": g.get("tip", ""),
+            "cefr": g.get("cefr", ""), "topic": g.get("topic", ""), "aid": g["aid"], "m": g["m"], "src": "gen",
+        })
+    elif base:
         # 变化形式（wore -> wear）：例句、搭配、插画用原形的；释义先放这个词形自己的（wear 的过去式）；
         # 音标和发音不能用原形的
         b = atlas[base]
@@ -166,7 +174,8 @@ def main():
     wanted = {k for w in words.values() for k in lookup_keys(w["hw"])}
     wanted |= {dicts.lemmas()[v] for v in wanted if v in dicts.lemmas()}
     ecdict = dicts.ecdict_rows(wanted)
-    entries = {wid: build_entry(wid, occ, atlas, ecdict) for wid, occ in words.items()}
+    forged = forge.load_by_id()
+    entries = {wid: build_entry(wid, occ, atlas, ecdict, forged) for wid, occ in words.items()}
     ENRICHED.write_text(json.dumps(entries, ensure_ascii=False, indent=1), encoding="utf-8")
     by_src = {}
     for e in entries.values():
