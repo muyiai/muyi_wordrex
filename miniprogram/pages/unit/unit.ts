@@ -77,6 +77,10 @@ Page({
     this.setData({ [`revealed.${index}`]: true })
   },
 
+  studyUnit() {
+    wx.navigateTo({ url: `/pages/learn/learn?unit=${this.data.unitIndex}` })
+  },
+
   openWord(e: WechatMiniprogram.TouchEvent) {
     const index = e.currentTarget.dataset.index as number
     wx.navigateTo({ url: `/pages/word/word?book=${this.data.bookId}&u=${this.data.unitIndex}&i=${index}` })

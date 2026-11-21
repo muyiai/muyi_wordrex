@@ -1,0 +1,18 @@
+<view class="container">
+  <view class="card">
+    <picker range="{{daily}}" value="{{dailyIndex}}" bindchange="pickDaily">
+      <view class="row item">
+        <view>每天新学</view>
+        <view class="muted">{{daily[dailyIndex]}} 个词 ›</view>
+      </view>
+    </picker>
+    <view class="row item">
+      <view>
+        <view>拼写题</view>
+        <view class="muted hint">记得比较牢的词会让你拼一拼</view>
+      </view>
+      <switch checked="{{spell}}" bindchange="toggleSpell" color="#2f6fed" />
+    </view>
+  </view>
+  <view class="muted note">复习的时间由记忆算法（FSRS）安排：答对的词间隔越来越长，答错的很快会再出现。</view>
+</view>

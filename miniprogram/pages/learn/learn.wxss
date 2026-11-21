@@ -1,0 +1,161 @@
+.big {
+  font-size: 40rpx;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 12rpx;
+}
+
+.back {
+  margin-top: 48rpx;
+}
+
+.error-msg {
+  margin: 16rpx 0 40rpx;
+  word-break: break-all;
+}
+
+.progress-bar {
+  height: 8rpx;
+  border-radius: 4rpx;
+  background: var(--line);
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  background: var(--accent);
+}
+
+.top {
+  margin: 16rpx 4rpx 20rpx;
+}
+
+.hw {
+  font-size: 60rpx;
+  font-weight: 700;
+  word-break: break-word;
+}
+
+.hw-inline {
+  font-weight: 600;
+  margin: 0 8rpx;
+}
+
+.ipa-line {
+  margin: 4rpx 0 16rpx;
+}
+
+.meaning {
+  font-size: 32rpx;
+  margin-bottom: 16rpx;
+}
+
+.pic {
+  width: 100%;
+  border-radius: 16rpx;
+  margin: 8rpx 0 16rpx;
+}
+
+.example {
+  font-size: 28rpx;
+  border-top: 1rpx solid var(--line);
+  padding-top: 16rpx;
+}
+
+.prompt {
+  text-align: center;
+}
+
+.sentence {
+  font-size: 34rpx;
+  line-height: 1.7;
+  margin-bottom: 8rpx;
+}
+
+.blank {
+  color: var(--accent);
+  font-weight: 600;
+  margin: 0 6rpx;
+}
+
+.listen .speaker {
+  font-size: 96rpx;
+  padding: 24rpx 0 8rpx;
+}
+
+.spell-input {
+  margin: 24rpx 0 16rpx;
+  padding: 18rpx 24rpx;
+  border-radius: 14rpx;
+  background: var(--bg);
+  font-size: 36rpx;
+  text-align: center;
+}
+
+.spell-actions {
+  justify-content: center;
+}
+
+.spell-actions button {
+  margin: 0 12rpx;
+}
+
+.answer {
+  font-size: 30rpx;
+}
+
+.options {
+  margin-top: 8rpx;
+}
+
+.option {
+  background: var(--card);
+  border-radius: 16rpx;
+  padding: 26rpx 32rpx;
+  margin-bottom: 16rpx;
+  font-size: 30rpx;
+  border: 2rpx solid transparent;
+}
+
+.option.right {
+  border-color: #16a34a;
+  background: #ecfdf3;
+}
+
+.option.wrong {
+  border-color: var(--warn);
+  background: #fff4ed;
+}
+
+.feedback {
+  border-radius: 16rpx;
+  padding: 20rpx 28rpx;
+  margin: 8rpx 0 24rpx;
+  font-size: 28rpx;
+}
+
+.feedback.ok {
+  background: #ecfdf3;
+  color: #166534;
+}
+
+.feedback.bad {
+  background: #fff4ed;
+  color: var(--warn);
+}
+
+.next {
+  margin-top: 16rpx;
+}
+
+.done {
+  text-align: center;
+  padding: 48rpx 32rpx;
+}
+
+.score {
+  font-size: 96rpx;
+  font-weight: 700;
+  color: var(--accent);
+  margin: 16rpx 0;
+}

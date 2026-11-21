@@ -1,0 +1,88 @@
+<view wx:if="{{state === 'loading'}}" class="state">准备中…</view>
+
+<view wx:elif="{{state === 'error'}}" class="state">
+  <view>数据加载失败</view>
+  <view class="muted error-msg">{{error}}</view>
+  <button class="btn-plain" bindtap="goHome">返回</button>
+</view>
+
+<view wx:elif="{{state === 'empty'}}" class="state">
+  <view class="big">今天没有要学的了 🎉</view>
+  <view class="muted">没有到期要复习的词，新词也学够了今天的量</view>
+  <button class="btn-plain back" bindtap="goHome">返回</button>
+</view>
+
+<view wx:elif="{{state === 'done'}}" class="container">
+  <view class="card done">
+    <view class="big">这一轮完成了</view>
+    <view class="score">{{stats.accuracy}}%</view>
+    <view class="muted">答对 {{stats.correct}} / {{stats.total}}（每个词只算第一次作答）</view>
+  </view>
+  <button class="btn" bindtap="goHome">返回</button>
+</view>
+
+<view wx:else class="container">
+  <view class="progress-bar"><view class="progress-fill" style="width: {{(index + 1) / total * 100}}%"></view></view>
+  <view class="row top">
+    <view class="muted">{{kindTitle}}<text wx:if="{{retry}}">（再练一次）</text></view>
+    <view class="muted">{{index + 1}} / {{total}}</view>
+  </view>
+
+  <!-- 新词：先认识 -->
+  <view wx:if="{{kind === 'intro'}}" class="card">
+    <view class="hw">{{hw}}</view>
+    <view class="ipa-line" bindtap="play"><text class="ipa">{{ipa}}</text><text wx:if="{{hasAudio}}"> 🔊</text></view>
+    <view class="meaning">{{meaning}}</view>
+    <image wx:if="{{image}}" class="pic" src="{{image}}" mode="widthFix" />
+    <view wx:if="{{example.en}}" class="example">
+      <view>{{example.en}}</view>
+      <view class="muted">{{example.zh}}</view>
+    </view>
+  </view>
+
+  <!-- 选义：看英文选中文 -->
+  <view wx:elif="{{kind === 'meaning'}}" class="card prompt">
+    <view class="hw">{{hw}}</view>
+    <view class="ipa-line" bindtap="play"><text class="ipa">{{ipa}}</text><text wx:if="{{hasAudio}}"> 🔊</text></view>
+  </view>
+
+  <!-- 例句填空：有插画就配图 -->
+  <view wx:elif="{{kind === 'cloze'}}" class="card prompt">
+    <image wx:if="{{image}}" class="pic" src="{{image}}" mode="widthFix" />
+    <view class="sentence">{{cloze.before}}<text class="blank">{{answered ? hw : '_____'}}</text>{{cloze.after}}</view>
+    <view class="muted">{{example.zh}}</view>
+  </view>
+
+  <!-- 听音选词 -->
+  <view wx:elif="{{kind === 'listen'}}" class="card prompt listen" bindtap="play">
+    <view class="speaker">🔊</view>
+    <view class="muted">点击再听一遍</view>
+  </view>
+
+  <!-- 拼写 -->
+  <view wx:elif="{{kind === 'spell'}}" class="card prompt">
+    <image wx:if="{{image}}" class="pic" src="{{image}}" mode="widthFix" />
+    <view class="meaning">{{meaning}}</view>
+    <view wx:if="{{cloze.before || cloze.after}}" class="muted">{{cloze.before}}_____{{cloze.after}}</view>
+    <input class="spell-input" value="{{typed}}" bindinput="onType" bindconfirm="submitSpelling" disabled="{{answered}}"
+           placeholder="输入英文" auto-focus confirm-type="done" />
+    <view wx:if="{{!answered}}" class="row spell-actions">
+      <button class="btn-plain" size="mini" bindtap="giveHint">提示一个字母</button>
+      <button class="btn" size="mini" bindtap="submitSpelling">确定</button>
+    </view>
+    <view wx:else class="answer">正确拼写：<text class="hw-inline">{{hw}}</text></view>
+  </view>
+
+  <!-- 选项 -->
+  <view wx:if="{{options.length}}" class="options">
+    <view wx:for="{{options}}" wx:key="id" class="option {{item.state}}" data-id="{{item.id}}" bindtap="choose">{{item.label}}</view>
+  </view>
+
+  <!-- 作答后 -->
+  <view wx:if="{{answered && kind !== 'intro'}}" class="feedback {{correct ? 'ok' : 'bad'}}">
+    <view>{{correct ? '答对了' : '记一下：'}}<text class="hw-inline">{{hw}}</text> {{meaning}}</view>
+  </view>
+
+  <button wx:if="{{kind === 'intro'}}" class="btn next" bindtap="next">认识了，下一个</button>
+  <button wx:elif="{{answered}}" class="btn next" bindtap="next">继续</button>
+</view>

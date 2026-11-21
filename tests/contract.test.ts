@@ -44,3 +44,34 @@ describe.skipIf(!existsSync(join(BUILD, 'catalog.json')))('build 产物', () => 
     }
   })
 })
+
+describe.skipIf(!existsSync(join(BUILD, 'catalog.json')))('用真实课本组一轮题', () => {
+  const books = ['ps-pep-3a', 'jh-pep-7a', 'sh-wy-b1']
+  for (const id of books) {
+    it(id, async () => {
+      const { studyWords, buildSession } = await import('../miniprogram/lib/session')
+      const { emptyProgress } = await import('../miniprogram/lib/progress')
+      const words = studyWords(read<Book>(`books/${id}.json`), read<BookDict>(`books/${id}.dict.json`), 'https://cdn.example')
+      expect(words.length).toBeGreaterThan(30)
+      const s = buildSession(words, id, emptyProgress(), { dailyNew: 30, retention: 0.9, spell: true }, Date.UTC(2026, 10, 21))
+      expect(s.newIds).toHaveLength(30)
+      const kinds: Record<string, number> = {}
+      for (const step of s.steps) {
+        kinds[step.kind] = (kinds[step.kind] || 0) + 1
+        if (step.kind === 'intro') continue
+        if (step.kind === 'spell') {
+          expect(words.find((w) => w.id === step.id)!.hw).toMatch(/^[A-Za-z][A-Za-z' -]*$/)
+          continue
+        }
+        expect(step.options).toContain(step.id)
+        expect(new Set(step.options).size).toBe(step.options!.length)
+        expect(step.options!.length).toBeGreaterThanOrEqual(2)
+      }
+      expect(kinds.intro).toBe(30)
+      expect((kinds.meaning || 0) + (kinds.cloze || 0)).toBeGreaterThan(15) // 新词主要出选义和填空
+      // 例句挖空成功的比例（有例句的词里）
+      const withEx = words.filter((w) => w.example)
+      expect(withEx.filter((w) => w.cloze).length / withEx.length).toBeGreaterThan(0.8)
+    })
+  }
+})

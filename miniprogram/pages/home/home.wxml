@@ -25,6 +25,24 @@
       <view class="muted">{{units.length}} 个单元 · {{total}} 个单词和短语</view>
     </view>
 
+    <view class="card today">
+      <view class="row">
+        <view>
+          <view class="today-title">今日学习</view>
+          <view wx:if="{{today.resume}}" class="muted">上一轮还没学完</view>
+          <view wx:elif="{{today.due || today.fresh}}" class="muted">复习 {{today.due}} 个 · 新词 {{today.fresh}} 个 · 约 {{today.minutes}} 分钟</view>
+          <view wx:else class="muted">今天的任务完成了，明天再来</view>
+        </view>
+        <button wx:if="{{today.resume || today.due || today.fresh}}" class="btn go" size="mini" bindtap="startLearning">
+          {{today.resume ? '继续' : '开始'}}</button>
+      </view>
+      <view class="stats">
+        <view class="stat"><view class="num">{{today.learned}}</view><view class="muted">已学 / {{today.total}}</view></view>
+        <view class="stat"><view class="num">{{today.mastered}}</view><view class="muted">记得牢</view></view>
+        <view class="stat"><view class="num">{{today.streak}}</view><view class="muted">连续天数</view></view>
+      </view>
+    </view>
+
     <view class="section-title">单元</view>
     <view class="card units">
       <view wx:for="{{units}}" wx:key="name" class="unit row" data-index="{{index}}" bindtap="openUnit">
@@ -33,6 +51,6 @@
       </view>
     </view>
 
-    <view class="footer muted" bindtap="openAbout">关于与数据来源</view>
+    <view class="footer muted"><text bindtap="openSettings">学习设置</text> · <text bindtap="openAbout">关于与数据来源</text></view>
   </block>
 </view>

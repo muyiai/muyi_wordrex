@@ -81,3 +81,7 @@
   margin: 16rpx 0 40rpx;
   word-break: break-all;
 }
+
+.study-unit {
+  margin: 8rpx 0 24rpx;
+}

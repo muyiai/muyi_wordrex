@@ -28,6 +28,7 @@
         <view wx:else class="meaning">{{item.meaning || '（暂无释义）'}}</view>
       </view>
     </view>
+    <button class="btn study-unit" bindtap="studyUnit">学这个单元</button>
     <view class="muted legend">灰色的是课本不要求掌握的词（专名、拓展词）；「新」表示这套教材里第一次出现</view>
   </view>
 </block>
