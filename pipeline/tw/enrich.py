@@ -66,6 +66,36 @@ def lookup(hw, atlas, ecdict):
     return None, None, ""
 
 
+# 英美拼写：color/colour、center/centre、realize/realise……
+SPELLING = [("our", "or"), ("or", "our"), ("ise", "ize"), ("ize", "ise"), ("yse", "yze"), ("yze", "yse"),
+            ("tre", "ter"), ("ter", "tre"), ("ence", "ense"), ("ense", "ence"), ("ogue", "og"), ("og", "ogue")]
+# ECDICT exchange 里的变化类型：可以直接用原形内容的（过去式、过去分词、第三人称、复数、比较级、最高级）
+FORM_TYPES = {"p", "d", "pd", "dp", "3", "s", "s3", "r", "t"}
+
+
+def atlas_spelling(hw, atlas):
+    """英美拼写不同的同一个词，词光内容完全通用。"""
+    w = hw.lower()
+    for a, b in SPELLING:
+        if w.endswith(a) and len(w) > len(a) + 2 and w[: -len(a)] + b in atlas:
+            return atlas[w[: -len(a)] + b]
+    return None
+
+
+def atlas_base_form(row, atlas):
+    """ECDICT 标明这个词是某个原形的变化形式（exchange 里的 0:原形、1:类型），且原形在词光里时，返回原形。
+
+    -ing 形式常有自己的意思（boxing 拳击、saying 谚语），只有 ECDICT 释义本身就指向原形时才关联。
+    """
+    fields = dict(f.split(":", 1) for f in (row.get("exchange") or "").split("/") if ":" in f)
+    base, kind = fields.get("0", ""), fields.get("1", "")
+    if not base or base not in atlas or base == row["word"].lower():
+        return None
+    if kind in FORM_TYPES or (kind == "i" and base in row["translation"]):
+        return base
+    return None
+
+
 def build_entry(wid, occ, atlas, ecdict):
     """occ：这个词在各书里的第一次出现（normalize 后的 word），用来取展示词头、课本音标和兜底释义。
 
@@ -73,8 +103,22 @@ def build_entry(wid, occ, atlas, ecdict):
     人名不查词典：ECDICT 的人名释义常有错（Gina -> 吉娜（男子名））。
     """
     a, e, lemma = lookup(occ["hw"], atlas, ecdict) if occ["kind"] != "name" else (None, None, "")
+    if not a and occ["kind"] == "word":
+        a = atlas_spelling(occ["hw"], atlas)
+    base = atlas_base_form(e, atlas) if e and not a and occ["kind"] == "word" else None
     entry = {"id": wid, "w": occ["hw"], "kind": occ["kind"]}
-    if a:
+    if base:
+        # 变化形式（wore -> wear）：例句、搭配、插画用原形的；释义先放这个词形自己的（wear 的过去式）；
+        # 音标和发音不能用原形的
+        b = atlas[base]
+        entry.update({
+            "uk": occ.get("ipa") or ecdict_ipa(e["phonetic"]), "senses": ecdict_senses(e["translation"])[:1] + b["senses"],
+            "ex": b["ex"], "col": b["col"], "fam": b["fam"], "syn": b["syn"], "ant": b["ant"], "tip": b["tip"],
+            "cefr": b["cefr"], "topic": b["topic"], "aid": b["id"], "m": dicts.atlas_media().get(b["id"], 0) & (1 | 8),
+            "src": "atlas",
+        })
+        lemma = base
+    elif a:
         entry.update({
             "uk": a["uk"], "us": a["us"], "senses": a["senses"], "ex": a["ex"], "col": a["col"],
             "fam": a["fam"], "syn": a["syn"], "ant": a["ant"], "tip": a["tip"], "cefr": a["cefr"],
