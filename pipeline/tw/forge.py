@@ -362,7 +362,10 @@ def gen_image(env, e):
 
 
 def run_images(args):
-    todo_entries = [e for e in generated().values() if not (MEDIA_DIR / "img" / f"{e['aid']}.webp").exists()]
+    # 只画会进小程序的词条；小学、初中的先画
+    todo_entries = sorted((e for e in generated().values() if usable(e)
+                           and not (MEDIA_DIR / "img" / f"{e['aid']}.webp").exists()),
+                          key=lambda e: (STAGE_ORDER[e["stage"]], e["kind"] != "word", e["src"].lower()))
     if args.limit:
         todo_entries = todo_entries[: args.limit]
     print(f"forge images: 待生成 {len(todo_entries)} 张")
